@@ -41,6 +41,17 @@ class SpecCtrl:
         return self.spec.wavelengths()
 
 
+class AcqController:
+    """Handles overall control of spectral acquisition, including motor movement"""
+    def __init__(self):
+        self.scan_deg = None    # Degrees of scan
+
+
+
+
+
+
+
 if __name__=="__main__":
 
     from matplotlib import pyplot as plt

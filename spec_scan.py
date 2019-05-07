@@ -30,8 +30,8 @@ import sys
 # In-house modules
 from doas_routine import DOASWorker
 from config_parser import config_parser
-from GUI_subs import *
-
+from gui_subs import *
+from acquisition_gui import AcquisitionFrame
 
 class PySpec(ttk.Frame):
     '''PySpec GUI'''
