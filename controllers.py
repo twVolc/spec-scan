@@ -3,26 +3,48 @@ import seabreeze.spectrometers as sb
 
 
 class SpecCtrl:
-    """Class to control spectrometer acquisition from USB2000+/Flame spectrometers"""
-
-    def __init__(self, int_time=100000):
+    """
+    Class to control spectrometer acquisition from USB2000+/Flame spectrometers
+    """
+    def __init__(self, int_time=100):
         # Discover spectrometer devices
-        self.devices = sb.list_devices()
-        self.spec = sb.Spectrometer(self.devices[0])
+        self.devices = None     # List of detected spectrometers
+        self.spec = None        # Holds spectrometer for interfacing via seabreeze
+        self.find_device()
 
         # Set integration time (ALL IN MICROSECONDS)
         self._int_limit_lower = 1000        # Lower integration time limit
-        self._int_limit_upper = 6000000     # Upper integration time limit
+        self._int_limit_upper = 10000000     # Upper integration time limit
         self._int_time = None               # Integration time attribute
         self.int_time = int_time
 
+        self.wavelengths = None             # Array of wavelengths
+
+    def find_device(self):
+        """Function to search for devices"""
+        try:
+            self.devices = sb.list_devices()
+            self.spec = sb.Spectrometer(self.devices[0])
+            self.spec.trigger_mode(0)
+
+            # If we have a spectrometer we then retrieve its wavelength calibration and store it as an attribute
+            self.get_wavelengths()
+
+        except IndexError:
+            self.devices = None
+            self.spec = None
+            raise SpectrometerConnectionError('No spectrometer found')
+
+
     @property
     def int_time(self):
-        return self._int_time
+        return self._int_time / 1000  # Return time in milliseconds
 
     @int_time.setter
     def int_time(self, int_time):
         """Set integration time"""
+        int_time *= int(1000)       # Adjust to work in microseconds (class takes time in milliseconds)
+
         # Check requested integration time is acceptable
         if int_time < self._int_limit_lower:
             raise ValueError('Integration time below %i us is not possible' % self._int_limit_lower)
@@ -38,11 +60,21 @@ class SpecCtrl:
 
     def get_wavelengths(self):
         """Returns wavelengths"""
-        return self.spec.wavelengths()
+        self.wavelengths = self.spec.wavelengths()
+
+
+class SpectrometerConnectionError(Exception):
+    """
+    Error raised if no spectrometer is detected
+    """
+    pass
 
 
 class AcqController:
-    """Handles overall control of spectral acquisition, including motor movement"""
+    """
+    Handles overall control of spectral acquisition, including motor movement
+    PROBABLY LEAVE THIS TO <AcquisitionFrame>
+    """
     def __init__(self):
         self.scan_deg = None    # Degrees of scan
 

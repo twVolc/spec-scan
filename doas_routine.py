@@ -23,7 +23,6 @@ class DOASWorker:
         # ======================================================================================================================
         # Initial Definitions
         # ======================================================================================================================
-        self.row_range = np.arange(300, 310)  # Number of rows to be averaged when generating the spectrum form the image
         self.stray_range = np.arange(100, 201)  # Columns to be used for stray light correction
         self.shift = 0  # Shift of spectrum in number of pixels
         self.start_fit_pix = 275
@@ -61,7 +60,6 @@ class DOASWorker:
         # (self.img_clear, self.img_size_x, self.img_size_y) = self.load_spec()  # Clear image (I0)
         # self.img_dark = self.load_dark()  # Dark Image
         # self.img_clear = self.img_clear - self.img_dark  # Dark subtract clear image
-        # self.clear_spec = np.mean(self.img_clear[self.row_range, :])
         # # --------------------------------------------------------------------------------------------------------------
 
     def load_reference_spectrum(self, pathname):

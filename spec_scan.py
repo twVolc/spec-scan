@@ -75,12 +75,16 @@ class PySpec(ttk.Frame):
         self.hyperspecFrame = ttk.Frame(self.tabs)
         self.tabs.add(self.mainFrame, text='Main')
         self.tabs.add(self.calibFrame, text='Calibration')
-        self.tabs.add(self.hyperspecFrame, text='Hyperspectral')
         self.tabs.pack(fill="both", expand=1)
 
         # ==============================================================================================================
         # MAIN TAB SETUP
         # ==============================================================================================================
+        # Acquisition frame
+        self.acq_frame = AcquisitionFrame(self.mainFrame)
+        self.acq_frame.frame.pack(side='left', expand=1, anchor='nw')
+
+        # Messages frame
         self.messages = MessagesGUI(self.mainFrame)
         self.messages.frame.pack(side='right', fill=tk.Y, expand=1, anchor='e')
 

@@ -28,6 +28,9 @@ class SettingsGUI:
         self.mainFont = tkFont.Font(family='Helvetica', size=self.font_size)
         self.mainFontBold = tkFont.Font(family='Helvetica', size=self.font_size, weight='bold')
 
+        self.px = 5     # x padding
+        self.py = 5     # y padding
+
 
 class MessagesGUI:
     """Class to control messages in the GUI"""
