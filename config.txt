@@ -1,0 +1,13 @@
+# CONFIGURATION FILE
+# This config file is whitespace sensitive on each configuration line, and thus format should be strictly maintained
+
+local_dir='C:\Users\tw9616\Documents\PhD\RaspberryPi\PiCamUV\Python Scripts\viewImg3_work\'  # Path to where image directory is held
+ref_spec_dir='C:\Users\tw9616\Documents\PhD\RaspberryPi\Spectrometer\SO2 Cross-sections\'  # Path to open initial reference spectrum
+
+
+# Figure settings
+img_dim=648,486  # Loaded image dimensions (x,y)
+dpi=96  # Screen dpi - can be used to adjust all figure sizes (I recommend editing this before individual figure sizes)
+font_size=8  # Figure font size
+ref_fig_size=10,4  # Reference spectrum figure size
+cal_fig_size=6,6  # Calibration spectra image figure size
