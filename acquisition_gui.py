@@ -11,6 +11,8 @@ from matplotlib.figure import Figure
 
 from gui_subs import SettingsGUI
 from controllers import SpecCtrl, SpectrometerConnectionError
+from plotting_gui import SpectraPlot
+from doas_routine import DOASWorker
 
 from datetime import datetime
 
@@ -18,9 +20,10 @@ class AcquisitionFrame:
     """
     Frame for controlling acquisition settings and instigating acquisitions
     """
-    def __init__(self, frame, doas_worker):
+    def __init__(self, frame, doas_worker, spec_plot):
         self.setts = SettingsGUI()      # Import settings
         self.doas_worker = doas_worker  # Setup DOASWorker object, used for processing
+        self.spec_plot = spec_plot      # Setup SpectraPlot object, used for plotting spectra
 
         # PROBABLY SETUP THIS PATH THROUGH A FUNCTION WHICH CREATES A NEW DATE DIRECTORY
         # OR THIS MAY BE SETUP OUTSIDE OF THIS CLASS - BY THE MAIN CLASS
@@ -43,7 +46,7 @@ class AcquisitionFrame:
     def __setup_gui__(self, frame):
 
         # Setup main frame
-        self.frame = ttk.LabelFrame(frame, text='Acquisition Settings', relief=tk.GROOVE, borderwidth=5)
+        self.frame = ttk.LabelFrame(frame, text='Acquisition Settings', relief=tk.RAISED, borderwidth=5)
 
         row = 0     # Row will be incremented for easy griding
 
@@ -103,6 +106,9 @@ class AcquisitionFrame:
         if not self._check_connection():
             return
 
+        # Set integration time
+        self.spec_ctrl.int_time = self.int_time.get()
+
         # Set doas_worker wavelength attribute to the wavelength calibration of spectrometer
         self.doas_worker.wavelengths = self.spec_ctrl.wavelengths
 
@@ -117,11 +123,34 @@ class AcquisitionFrame:
         # Change GUI label for dark file
         self.dark_file_label.configure(text=self.dark_filename)
 
+        # Update plot with new data
+        self.spec_plot.update_dark()
+
 
     def clear_capture(self):
         """Controls clear spectrum capture"""
         if not self._check_connection():
             return
+
+        # Set integration time
+        self.spec_ctrl.int_time = self.int_time.get()
+
+        # Set doas_worker wavelength attribute to the wavelength calibration of spectrometer
+        self.doas_worker.wavelengths = self.spec_ctrl.wavelengths
+
+        # Ignore first spectrum as it could have been acquired prior to
+        self.doas_worker.clear_spec_raw = self.spec_ctrl.get_spec()
+
+        # Generate filename based on time, then save file as text
+        time = datetime.now().strftime('%Y-%m-%dT%H%M%S')
+        self.clear_filename = '{}_clear.txt'.format(time)
+        self.doas_worker.save_clear_raw(self.save_path + self.clear_filename)
+
+        # Change GUI label for dark file
+        self.clear_file_label.configure(text=self.clear_filename)
+
+        # Update plot with new data
+        self.spec_plot.update_clear()
 
 
 
@@ -140,20 +169,34 @@ class AcquisitionFrame:
             raise ValueError('Acquisition mode expected 0 or 1. Got {}'.format(acq_mode))
 
 
+
     def acquire_single(self):
         """Perform single acquisition"""
+        # Could possibly condense this work into a a function which is called by acquire_single and acquire scan, as
+        # much of this function is used in acquire scan
+
         # Set spectrometer control object to correct integration time
         self.spec_ctrl.int_time = self.int_time.get()
-        spectrum = self.spec_ctrl.get_spec()
-        print(spectrum)
+
+        # Set doas_worker wavelength attribute to the wavelength calibration of spectrometer
+        self.doas_worker.wavelengths = self.spec_ctrl.wavelengths
+
+        # Ignore first spectrum as it could have been acquired prior to
+        self.doas_worker.plume_spec_raw = self.spec_ctrl.get_spec()
+
+        # Generate filename based on time, then save file as text
+        time = datetime.now().strftime('%Y-%m-%dT%H%M%S')
+        self.plume_filename = '{}_plume.txt'.format(time)
+        self.doas_worker.save_plume_raw(self.save_path + self.plume_filename)
+
+        # Update plot with new data
+        self.spec_plot.update_plume()
+
 
     def acquire_scan(self):
         """Perform scan acquisition"""
-        # Might want to discard first sepctrum captured at each step, because the spectrometer is constantly acquiring,
-        # so the first spectrum may have been acquired whilst the spectrometer was facing a different direction
-        pass
-
-
+        self.spec_ctrl.int_time = self.int_time.get()
+        # ADD CODE
 
     def _check_connection(self):
         """Checks spectrometer connection"""

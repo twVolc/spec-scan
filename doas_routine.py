@@ -25,17 +25,18 @@ class DOASWorker:
         # ======================================================================================================================
         self.stray_range = np.arange(100, 201)  # Columns to be used for stray light correction
         self.shift = 0  # Shift of spectrum in number of pixels
-        self.start_fit_pix = 275
-        self.end_fit_pix = 400  # Pixel space fitting window definitions
-        self.start_fit_wave = 305
-        self.end_fit_wave = 320  # Wavelength space fitting window definitions
+        self._start_fit_pix = None
+        self._end_fit_pix = None  # Pixel space fitting window definitions
+        self._start_fit_wave = None
+        self._end_fit_wave = None  # Wavelength space fitting window definitions
         self.fit_window = None  # Fitting window, determined by set_fit_window()
         self.fit_window_ref = None  # Placeholder for shifted fitting window for the reference spectrum
         self.wave_fit = True  # If True, wavelength parameters are used to define fitting window
 
         self.wavelengths = None     # Placeholder for wavelengths attribute which contains all wavelengths of spectra
         self.dark_spec = None       # Dark spectrum
-        self.clear_spec = None      # Clear (fraunhofer) spectrum
+        self.clear_spec_raw = None      # Clear (fraunhofer) spectrum - not dark corrected
+        self.plume_spec_raw = None      # In-plume spectrum (main one which is used for calculation of SO2
 
         self.poly_order = 2  # Order of polynomial used to fit residual
         (self.filt_B, self.filt_A) = signal.butter(10, 0.065, btype='highpass')
@@ -64,6 +65,36 @@ class DOASWorker:
         # self.img_clear = self.img_clear - self.img_dark  # Dark subtract clear image
         # # --------------------------------------------------------------------------------------------------------------
 
+
+    @property
+    def start_fit_wave(self):
+        return self._start_fit_wave
+
+    @start_fit_wave.setter
+    def start_fit_wave(self, value):
+        self._start_fit_wave = value
+
+        # Set pixel value too, if wavelengths attribute is present
+        if self.wavelengths is not None:
+            self._start_fit_pix = np.argmin(np.absolute(self.wavelengths - value))
+            print(value)
+            print(len(self.wavelengths))
+            print(self._start_fit_pix)
+
+    @property
+    def end_fit_wave(self):
+        return self._end_fit_wave
+
+    @end_fit_wave.setter
+    def end_fit_wave(self, value):
+        self._end_fit_wave = value
+
+        # Set pixel value too, if wavelengths attribute is present
+        if self.wavelengths is not None:
+            self._end_fit_pix = np.argmin(np.absolute(self.wavelengths - value))
+
+
+
     def load_reference_spectrum(self, pathname):
         """Load raw reference spectrum"""
         self.ref_spec = np.loadtxt(pathname)
@@ -86,12 +117,14 @@ class DOASWorker:
             if self.wavelengths is None:
                 print('Error, first run get_ref_spectrum() to define wavelengths vector')
                 return
-            wave_dif_start = self.wavelengths - self.start_fit_wave
-            wave_dif_end = self.wavelengths - self.end_fit_wave
-            self.start_fit_pix = wave_dif_start.index(np.amin(wave_dif_start))  # Find the index which represents the wavelengths closest to the defined starting wavelength for the fit
-            self.end_fit_pix = wave_dif_end.index(np.amin(wave_dif_end))  # As above, but for ending wavelength
 
-        self.fit_window = np.arange(self.start_fit_pix, self.end_fit_pix)  # Fitting window (in Pixel space)
+            ## THis shouldn't be necessary now as I set these during setting the wavelength fit start/end
+            # wave_dif_start = self.wavelengths - self.start_fit_wave
+            # wave_dif_end = self.wavelengths - self.end_fit_wave
+            # self._start_fit_pix = wave_dif_start.index(np.amin(wave_dif_start))  # Find the index which represents the wavelengths closest to the defined starting wavelength for the fit
+            # self._end_fit_pix = wave_dif_end.index(np.amin(wave_dif_end))  # As above, but for ending wavelength
+
+        self.fit_window = np.arange(self._start_fit_pix, self._end_fit_pix)  # Fitting window (in Pixel space)
 
     def shift_spectrum(self):
         """Shift fitting window for reference spectrum"""
@@ -115,21 +148,32 @@ class DOASWorker:
         np.savetxt(filename, np.transpose([self.wavelengths, self.dark_spec]),
                    header='Dark spectrum\nWavelength [nm]\tIntensity [DN]')
 
-    def save_clear(self, filename):
+    def save_clear_raw(self, filename):
         """Save dark spectrum"""
-        if self.wavelengths is None or self.clear_spec is None:
+        if self.wavelengths is None or self.clear_spec_raw is None:
             raise ValueError('One or both attributes are NoneType. Cannot save.')
-        if len(self.wavelengths) != len(self.clear_spec):
+        if len(self.wavelengths) != len(self.clear_spec_raw):
             raise ValueError('Arrays are not the same length. Cannot save.')
 
-        np.savetxt(filename, np.transpose([self.wavelengths, self.clear_spec]),
-                   header='Clear (Fraunhofer) spectrum\nWavelength [nm]\tIntensity [DN]')
+        np.savetxt(filename, np.transpose([self.wavelengths, self.clear_spec_raw]),
+                   header='Raw clear (Fraunhofer) spectrum\n'
+                          '-Not dark-corrected\nWavelength [nm]\tIntensity [DN]')
+
+    def save_plume_raw(self, filename):
+        if self.wavelengths is None or self.plume_spec_raw is None:
+            raise ValueError('One or both attributes are NoneType. Cannot save.')
+        if len(self.wavelengths) != len(self.plume_spec_raw):
+            raise ValueError('Arrays are not the same length. Cannot save.')
+
+        np.savetxt(filename, np.transpose([self.wavelengths, self.plume_spec_raw]),
+                   header='Raw in-plume spectrum\n'
+                          '-Not dark-corrected\nWavelength [nm]\tIntensity [DN]')
 
 
     def poly_DOAS(self):
         """Performs main processing in polynomial fitting DOAS retrieval"""
 
-        self.abs_spec = np.log(np.divide(self.clear_spec, self.plume_spec))  # Calculate absorbance
+        self.abs_spec = np.log(np.divide(self.clear_spec_raw, self.plume_spec))  # Calculate absorbance
         self.ref_spec_cut = self.ref_spec[self.fit_window_ref]
         self.abs_spec_cut = self.abs_spec[self.fit_window]
 
@@ -149,7 +193,7 @@ class DOASWorker:
 
     def fltr_DOAS(self):
         """Performs main retrieval in digital filtering DOAS retrieval"""
-        self.abs_spec = np.log(np.divide(self.clear_spec, self.plume_spec))  # Calculate absorbance
+        self.abs_spec = np.log(np.divide(self.clear_spec_raw, self.plume_spec))  # Calculate absorbance
         self.abs_spec_filt = signal.lfilter(self.filt_B, self.filt_A, self.abs_spec)  # Filter absorbance spectrum
 
         self.ref_spec_cut = self.ref_spec[self.fit_window_ref]

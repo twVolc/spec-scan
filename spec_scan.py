@@ -32,6 +32,7 @@ from doas_routine import DOASWorker
 from config_parser import config_parser
 from gui_subs import *
 from acquisition_gui import AcquisitionFrame
+from plotting_gui import SpectraPlot
 
 class PySpec(ttk.Frame):
     '''PySpec GUI'''
@@ -79,13 +80,21 @@ class PySpec(ttk.Frame):
         # ==============================================================================================================
         # MAIN TAB SETUP
         # ==============================================================================================================
-        # Acquisition frame
-        self.acq_frame = AcquisitionFrame(self.mainFrame, self.DOAS)
-        self.acq_frame.frame.pack(side='left', expand=1, anchor='nw')
-
         # Messages frame
         self.messages = MessagesGUI(self.mainFrame)
         self.messages.frame.pack(side='right', fill=tk.Y, expand=1, anchor='e')
+
+        # Spectra plots
+        self.spec_frame = SpectraPlot(self.mainFrame, self.DOAS)
+        self.spec_frame.frame.pack(side='right', expand=1, anchor='e')
+
+        # Acquisition frame
+        self.acq_frame = AcquisitionFrame(self.mainFrame, self.DOAS, self.spec_frame)
+        self.acq_frame.frame.pack(side='left', expand=1, anchor='nw')
+
+
+
+
 
         # ==============================================================================================================
         # Calibration work - reference spectrum etc
