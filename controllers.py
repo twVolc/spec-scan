@@ -10,6 +10,7 @@ class SpecCtrl:
         # Discover spectrometer devices
         self.devices = None     # List of detected spectrometers
         self.spec = None        # Holds spectrometer for interfacing via seabreeze
+        self.wavelengths = None # Array of wavelengths
         self.find_device()
 
         # Set integration time (ALL IN MICROSECONDS)
@@ -17,8 +18,6 @@ class SpecCtrl:
         self._int_limit_upper = 10000000     # Upper integration time limit
         self._int_time = None               # Integration time attribute
         self.int_time = int_time
-
-        self.wavelengths = None             # Array of wavelengths
 
     def find_device(self):
         """Function to search for devices"""
@@ -56,6 +55,13 @@ class SpecCtrl:
 
     def get_spec(self):
         """Acquire spectrum from spectrometer"""
+        # First spectrum is discarded as it may have been partially acquired prior to the acquisition request
+        # Trigger_mode is continuous
+        _dummy = self.spec.intensities()
+        return self.spec.intensities()
+
+    def get_spec_now(self):
+        """Immediately acquire spectrum from spectrometer - does not discard first spectrum"""
         return self.spec.intensities()
 
     def get_wavelengths(self):

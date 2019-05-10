@@ -187,7 +187,7 @@ class PlottingGUI:
         self.__draw_canv__()
         self.canv.get_tk_widget().pack(side=tk.TOP, fill=tk.BOTH, expand=True)
 
-        self.toolbar = NavigationToolbar2TkAgg(self.canv, self.frame)
+        self.toolbar = NavigationToolbar2Tk(self.canv, self.frame)
         self.toolbar.update()
         self.canv._tkcanvas.pack(side=tk.TOP)
 

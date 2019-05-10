@@ -70,9 +70,8 @@ class PySpec(ttk.Frame):
         self.mainFontBold = tkFont.Font(family='arial', size=self.font_size, weight='bold')
 
         self.tabs = ttk.Notebook(self.parent)
-        self.mainFrame = ttk.Frame(self.tabs)
-        self.calibFrame = ttk.Frame(self.tabs)
-        self.hyperspecFrame = ttk.Frame(self.tabs)
+        self.mainFrame = ttk.Frame(self.tabs, borderwidth=2)
+        self.calibFrame = ttk.Frame(self.tabs, borderwidth=2)
         self.tabs.add(self.mainFrame, text='Main')
         self.tabs.add(self.calibFrame, text='Calibration')
         self.tabs.pack(fill="both", expand=1)
@@ -81,7 +80,7 @@ class PySpec(ttk.Frame):
         # MAIN TAB SETUP
         # ==============================================================================================================
         # Acquisition frame
-        self.acq_frame = AcquisitionFrame(self.mainFrame)
+        self.acq_frame = AcquisitionFrame(self.mainFrame, self.DOAS)
         self.acq_frame.frame.pack(side='left', expand=1, anchor='nw')
 
         # Messages frame

@@ -17,7 +17,7 @@ class DOASWorker:
     get_ref_spectrum()
     set_fit_window()
     shift_spectrum()"""
-    def __init__(self, routine):
+    def __init__(self, routine=2):
         self.routine = routine  # Defines routine to be used, either (1) Polynomial or (2) Digital Filtering
 
         # ======================================================================================================================
@@ -33,7 +33,9 @@ class DOASWorker:
         self.fit_window_ref = None  # Placeholder for shifted fitting window for the reference spectrum
         self.wave_fit = True  # If True, wavelength parameters are used to define fitting window
 
-        self.wavelengths = None  # Placeholder for wavelengths attribute which contains all wavelengths of spectra
+        self.wavelengths = None     # Placeholder for wavelengths attribute which contains all wavelengths of spectra
+        self.dark_spec = None       # Dark spectrum
+        self.clear_spec = None      # Clear (fraunhofer) spectrum
 
         self.poly_order = 2  # Order of polynomial used to fit residual
         (self.filt_B, self.filt_A) = signal.butter(10, 0.065, btype='highpass')
@@ -102,6 +104,27 @@ class DOASWorker:
     def load_dark(self):
         """Load drk images -> co-add to generate single dark image"""
         pass
+
+    def save_dark(self, filename):
+        """Save dark spectrum"""
+        if self.wavelengths is None or self.dark_spec is None:
+            raise ValueError('One or both attributes are NoneType. Cannot save.')
+        if len(self.wavelengths) != len(self.dark_spec):
+            raise ValueError('Arrays are not the same length. Cannot save.')
+
+        np.savetxt(filename, np.transpose([self.wavelengths, self.dark_spec]),
+                   header='Dark spectrum\nWavelength [nm]\tIntensity [DN]')
+
+    def save_clear(self, filename):
+        """Save dark spectrum"""
+        if self.wavelengths is None or self.clear_spec is None:
+            raise ValueError('One or both attributes are NoneType. Cannot save.')
+        if len(self.wavelengths) != len(self.clear_spec):
+            raise ValueError('Arrays are not the same length. Cannot save.')
+
+        np.savetxt(filename, np.transpose([self.wavelengths, self.clear_spec]),
+                   header='Clear (Fraunhofer) spectrum\nWavelength [nm]\tIntensity [DN]')
+
 
     def poly_DOAS(self):
         """Performs main processing in polynomial fitting DOAS retrieval"""
