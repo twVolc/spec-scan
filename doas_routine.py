@@ -27,8 +27,8 @@ class DOASWorker:
         self.shift = 0  # Shift of spectrum in number of pixels
         self._start_fit_pix = None
         self._end_fit_pix = None  # Pixel space fitting window definitions
-        self._start_fit_wave = None
-        self._end_fit_wave = None  # Wavelength space fitting window definitions
+        self._start_fit_wave = 305
+        self._end_fit_wave = 320  # Wavelength space fitting window definitions
         self.fit_window = None  # Fitting window, determined by set_fit_window()
         self.fit_window_ref = None  # Placeholder for shifted fitting window for the reference spectrum
         self.wave_fit = True  # If True, wavelength parameters are used to define fitting window

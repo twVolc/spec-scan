@@ -2,6 +2,7 @@ import tkinter as tk
 import tkinter.ttk as ttk
 
 from matplotlib import pyplot as plt
+from matplotlib.patches import Rectangle
 from matplotlib.backends.backend_tkagg import FigureCanvasTkAgg
 
 import queue
@@ -72,19 +73,16 @@ class SpectraPlot:
             self.ax.plot([250, 400], [0, 0], self.plt_colours[i], linewidth=1)
         self.ax.legend(('Dark', 'Clear', 'Plume'), loc=2, framealpha=1)
         self.fig.tight_layout()
-        # # If sub-plotting dark/clear/plume, use this
-        # for i in range(3):
-        #     self.axes[i].set_ylabel('DN')
-        #     self.axes[i].set_ylim([0, self.max_DN])
-        #     self.axes[i].grid(True)
-        #     self.axes[i].plot([250, 400], [0,0])
-        # self.axes[-1].set_xlim([250, 400])
-        # self.axes[-1].set_xlabel('Wavelength [nm]')
 
         self.min_line = self.ax.plot([self.doas_worker.start_fit_wave,self.doas_worker.start_fit_wave],
                                      [0, self.max_DN], 'y')
         self.max_line = self.ax.plot([self.doas_worker.end_fit_wave,self.doas_worker.end_fit_wave],
                                      [0, self.max_DN], 'y')
+
+        width = self.doas_worker.end_fit_wave - self.doas_worker.start_fit_wave
+        self.fit_wind = Rectangle((self.doas_worker.start_fit_wave,0), width=width, height=self.max_DN,
+                                  fill=True, facecolor='y', alpha=0.2)
+        self.fit_wind_patch = self.ax.add_patch(self.fit_wind)
 
         self.canv = FigureCanvasTkAgg(self.fig, master=self.frame)
         self.canv.draw()
@@ -115,6 +113,8 @@ class SpectraPlot:
 
         # Update plot
         self.min_line[0].set_data([self.doas_worker.start_fit_wave, self.doas_worker.start_fit_wave], [0, self.max_DN])
+        self.fit_wind.set_x(self.doas_worker.start_fit_wave)
+        self.fit_wind.set_width(self.doas_worker.end_fit_wave-self.doas_worker.start_fit_wave)
         self.canv.draw()
 
     def update_fit_wind_end(self):
@@ -124,4 +124,18 @@ class SpectraPlot:
 
         # Update plot
         self.max_line[0].set_data([self.doas_worker.end_fit_wave, self.doas_worker.end_fit_wave], [0, self.max_DN])
+        self.fit_wind.set_width(self.doas_worker.end_fit_wave - self.doas_worker.start_fit_wave)
         self.canv.draw()
+
+
+class DOASPlot:
+    """
+    Generates a widget containing the DOAS fit plot
+    """
+    def __init__(self, frame, doas_worker=DOASWorker()):
+        self.setts = SettingsGUI()
+        self.doas_worker = doas_worker
+
+    def __setup_gui__(self, frame):
+        """Organise widget"""
+        self.frame = ttk.Frame(frame, relief=tk.RAISED, borderwidth=4)
