@@ -24,14 +24,15 @@ class DOASWorker:
         # Initial Definitions
         # ======================================================================================================================
         self.stray_range = np.arange(100, 201)  # Columns to be used for stray light correction
-        self.shift = 0  # Shift of spectrum in number of pixels
-        self._start_fit_pix = None
-        self._end_fit_pix = None  # Pixel space fitting window definitions
-        self._start_fit_wave = 305
-        self._end_fit_wave = 320  # Wavelength space fitting window definitions
-        self.fit_window = None  # Fitting window, determined by set_fit_window()
+        self.shift = 0              # Shift of spectrum in number of pixels
+        self.stretch = 0            # Stretch of spectrum
+        self._start_fit_pix = None  # Pixel space fitting window definitions
+        self._end_fit_pix = None
+        self._start_fit_wave = 305  # Wavelength space fitting window definitions
+        self._end_fit_wave = 320
+        self.fit_window = None      # Fitting window, determined by set_fit_window()
         self.fit_window_ref = None  # Placeholder for shifted fitting window for the reference spectrum
-        self.wave_fit = True  # If True, wavelength parameters are used to define fitting window
+        self.wave_fit = True        # If True, wavelength parameters are used to define fitting window
 
         self.wavelengths = None     # Placeholder for wavelengths attribute which contains all wavelengths of spectra
         self.dark_spec = None       # Dark spectrum

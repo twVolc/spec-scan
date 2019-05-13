@@ -4,6 +4,7 @@ import tkinter.ttk as ttk
 from matplotlib import pyplot as plt
 from matplotlib.patches import Rectangle
 from matplotlib.backends.backend_tkagg import FigureCanvasTkAgg
+plt.style.use('dark_background')
 
 import queue
 
@@ -59,7 +60,6 @@ class SpectraPlot:
         # ------------------------------------------------
         # FIGURE SETUP
         # ------------------------------------------------
-        plt.style.use('dark_background')
         self.fig = plt.Figure(figsize=(10, 3), dpi=100)
 
         self.ax = self.fig.subplots(1, 1)
@@ -108,8 +108,15 @@ class SpectraPlot:
 
     def update_fit_wind_start(self):
         """updates fit window on plot"""
+        fit_wind_start = self.fit_wind_start.get()
+
+        # Ensure the end of the fit window doesn't become less than the start
+        if fit_wind_start >= self.fit_wind_end.get():
+            fit_wind_start = self.fit_wind_end.get() - 0.1
+            self.fit_wind_start.set(fit_wind_start)
+
         # Update DOASWorker with new fit window
-        self.doas_worker.start_fit_wave = self.fit_wind_start.get()
+        self.doas_worker.start_fit_wave = fit_wind_start
 
         # Update plot
         self.min_line[0].set_data([self.doas_worker.start_fit_wave, self.doas_worker.start_fit_wave], [0, self.max_DN])
@@ -119,8 +126,16 @@ class SpectraPlot:
 
     def update_fit_wind_end(self):
         """updates fit window on plot"""
+        fit_wind_end = self.fit_wind_end.get()
+
+        # Ensure the end of the fit window doesn't become less than the start
+        if fit_wind_end <= self.fit_wind_start.get():
+            fit_wind_end = self.fit_wind_start.get() + 0.1
+            print(fit_wind_end)
+            self.fit_wind_end.set(fit_wind_end)
+
         # Update DOASWorker with new fit window
-        self.doas_worker.end_fit_wave = self.fit_wind_end.get()
+        self.doas_worker.end_fit_wave = fit_wind_end
 
         # Update plot
         self.max_line[0].set_data([self.doas_worker.end_fit_wave, self.doas_worker.end_fit_wave], [0, self.max_DN])
@@ -136,6 +151,62 @@ class DOASPlot:
         self.setts = SettingsGUI()
         self.doas_worker = doas_worker
 
+        self.__setup_gui__(frame)
+
     def __setup_gui__(self, frame):
         """Organise widget"""
         self.frame = ttk.Frame(frame, relief=tk.RAISED, borderwidth=4)
+
+        # -----------------------------------------------
+        # WIDGET SETUP
+        # ------------------------------------------------
+        self.frame2 = ttk.Frame(self.frame)
+        self.frame2.pack(side=tk.TOP, fill=tk.X, expand=1)
+
+        label = tk.Label(self.frame2, text='Shift spectrum:').pack(side=tk.LEFT)
+        # label.grid(row=0, column=0)
+        self.shift = tk.DoubleVar()
+        self.shift.set(self.doas_worker.shift)
+        self.shift_box = tk.Spinbox(self.frame2, from_=-20, to=20, increment=1, width=3,
+                                             textvariable=self.shift, command=self.update_shift)
+        # self.fit_wind_box_start.grid(row=0, column=1)
+        self.shift_box.pack(side=tk.LEFT)
+
+        label2 = tk.Label(self.frame2, text='Stretch spectrum:').pack(side=tk.LEFT)
+        # label2.grid(row=0, column=2)
+        self.stretch = tk.DoubleVar()
+        self.stretch.set(self.doas_worker.stretch)
+        self.stretch_box = tk.Spinbox(self.frame2, from_=-2, to=2, increment=0.001, width=5,
+                                           textvariable=self.stretch, command=self.update_stretch)
+        # self.fit_wind_box_end.grid(row=0, column=3)
+        self.stretch_box.pack(side=tk.LEFT)
+
+        # ------------------------------------------------
+        # FIGURE SETUP
+        # ------------------------------------------------
+        self.fig = plt.Figure(figsize=(10, 3), dpi=100)
+
+        self.ax = self.fig.subplots(1, 1)
+        self.ax.set_ylabel('Absorbance')
+        self.ax.set_ylim([-0.2, 0.2])
+        self.ax.set_xlim([self.doas_worker.start_fit_wave, self.doas_worker.end_fit_wave])
+        self.ax.set_xlabel('Wavelength [nm]')
+        self.ax.grid(True)
+        self.plt_colours = ['b', 'r']
+        for i in range(2):
+            self.ax.plot([250, 400], [0, 0], self.plt_colours[i], linewidth=1)
+        self.ax.legend(('Measured', 'Fitted reference'), loc=1, framealpha=1)
+        self.fig.tight_layout()
+
+        self.canv = FigureCanvasTkAgg(self.fig, master=self.frame)
+        self.canv.draw()
+        self.canv.get_tk_widget().pack(side=tk.TOP, fill=tk.BOTH, expand=True)
+
+
+    def update_shift(self):
+        """Updates DOASWorker shift value for aligning spectra"""
+        self.doas_worker.shift = self.shift.get()
+
+    def update_stretch(self):
+        """Updates DOASWorker stretch value for aligning spectra"""
+        self.doas_worker.stretch = self.shift.get()
