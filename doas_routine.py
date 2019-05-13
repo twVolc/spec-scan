@@ -23,9 +23,12 @@ class DOASWorker:
         # ======================================================================================================================
         # Initial Definitions
         # ======================================================================================================================
-        self.stray_range = np.arange(100, 201)  # Columns to be used for stray light correction
         self.shift = 0              # Shift of spectrum in number of pixels
         self.stretch = 0            # Stretch of spectrum
+        self._start_stray_pix = None  # Pixel space stray light window definitions
+        self._end_stray_pix = None
+        self._start_stray_wave = 280  # Wavelength space stray light window definitions
+        self._end_stray_wave = 290
         self._start_fit_pix = None  # Pixel space fitting window definitions
         self._end_fit_pix = None
         self._start_fit_wave = 305  # Wavelength space fitting window definitions
@@ -36,8 +39,10 @@ class DOASWorker:
 
         self.wavelengths = None     # Placeholder for wavelengths attribute which contains all wavelengths of spectra
         self.dark_spec = None       # Dark spectrum
-        self.clear_spec_raw = None      # Clear (fraunhofer) spectrum - not dark corrected
-        self.plume_spec_raw = None      # In-plume spectrum (main one which is used for calculation of SO2
+        self.clear_spec_raw = None  # Clear (fraunhofer) spectrum - not dark corrected
+        self.plume_spec_raw = None  # In-plume spectrum (main one which is used for calculation of SO2
+        self.ref_spec = dict()      # Create empty dictionary for holding reference spectra
+        self.ref_spec_types = ['SO2', 'O3', 'ring'] # List of reference spectra types accepted/expected
 
         self.poly_order = 2  # Order of polynomial used to fit residual
         (self.filt_B, self.filt_A) = signal.butter(10, 0.065, btype='highpass')
@@ -66,6 +71,30 @@ class DOASWorker:
         # self.img_clear = self.img_clear - self.img_dark  # Dark subtract clear image
         # # --------------------------------------------------------------------------------------------------------------
 
+    @property
+    def start_stray_wave(self):
+        return self._start_stray_wave
+
+    @start_stray_wave.setter
+    def start_stray_wave(self, value):
+        self._start_stray_wave = value
+
+        # Set pixel value too, if wavelengths attribute is present
+        if self.wavelengths is not None:
+            self._start_stray_pix = np.argmin(np.absolute(self.wavelengths - value))
+
+    @property
+    def end_stray_wave(self):
+        return self._end_stray_wave
+
+    @end_stray_wave.setter
+    def end_stray_wave(self, value):
+        self._end_stray_wave = value
+
+        # Set pixel value too, if wavelengths attribute is present
+        if self.wavelengths is not None:
+            self._end_stray_pix = np.argmin(np.absolute(self.wavelengths - value))
+
 
     @property
     def start_fit_wave(self):
@@ -78,9 +107,6 @@ class DOASWorker:
         # Set pixel value too, if wavelengths attribute is present
         if self.wavelengths is not None:
             self._start_fit_pix = np.argmin(np.absolute(self.wavelengths - value))
-            print(value)
-            print(len(self.wavelengths))
-            print(self._start_fit_pix)
 
     @property
     def end_fit_wave(self):
@@ -96,9 +122,9 @@ class DOASWorker:
 
 
 
-    def load_reference_spectrum(self, pathname):
+    def load_reference_spectrum(self, pathname, species):
         """Load raw reference spectrum"""
-        self.ref_spec = np.loadtxt(pathname)
+        self.ref_spec[species] = np.loadtxt(pathname)
 
 
     def get_ref_spectrum(self):
@@ -233,7 +259,29 @@ class DOASWorker:
         plt.show()
 
 
+    def process_DOAS(self):
+        """Handles the order of DOAS processing"""
+        # Check we have all of the correct spectra to perform processing
+        if self.clear_spec_raw is None or self.plume_spec_raw is None or self.wavelengths:
+            raise SpectraError('Require clear and plume spectra for DOAS processing')
 
+        if self.ref_spec_types[0] not in self.ref_spec.keys():
+            raise SpectraError('No SO2 reference spectrum present for processing')
+
+        if self.dark_spec is None:
+            print('Warning! No dark spectrum present, processing without dark subtraction')
+
+
+
+
+
+
+
+class SpectraError(Exception):
+    """
+    Error raised if correct spectra aren't present for processing
+    """
+    pass
 
 
 class SpectrometerCal:

@@ -4,12 +4,14 @@ import tkinter.ttk as ttk
 from matplotlib import pyplot as plt
 from matplotlib.patches import Rectangle
 from matplotlib.backends.backend_tkagg import FigureCanvasTkAgg
-plt.style.use('dark_background')
 
 import queue
 
 from gui_subs import SettingsGUI
 from doas_routine import DOASWorker
+
+plt.style.use('dark_background')
+
 
 class SpectraPlot:
     """
@@ -39,23 +41,35 @@ class SpectraPlot:
         self.frame2 = ttk.Frame(self.frame)
         self.frame2.pack(side=tk.TOP, fill=tk.X, expand=1)
 
-        label = tk.Label(self.frame2, text='Fit wavelength (min.):').pack(side=tk.LEFT)
-        # label.grid(row=0, column=0)
+        # STRAY RANGE
+        self.stray_start = tk.DoubleVar()
+        self.stray_start.set(self.doas_worker.start_stray_wave)
+        self.stray_box_start = tk.Spinbox(self.frame2, from_=0, to=400, increment=0.1, width=5,
+                                             textvariable=self.stray_start, command=self.update_stray_start)
+        self.stray_end = tk.DoubleVar()
+        self.stray_end.set(self.doas_worker.end_stray_wave)
+        self.stray_box_end = tk.Spinbox(self.frame2, from_=1, to=400, increment=0.1, width=5,
+                                           textvariable=self.stray_end, command=self.update_stray_end)
+
+        label = tk.Label(self.frame2, text='Stray light correction (min.):').pack(side=tk.LEFT)
+        self.stray_box_start.pack(side=tk.LEFT)
+        label = tk.Label(self.frame2, text='Stray light correction (max.):').pack(side=tk.LEFT)
+        self.stray_box_end.pack(side=tk.LEFT)
+
+        # FIT WINDOW
         self.fit_wind_start = tk.DoubleVar()
         self.fit_wind_start.set(self.doas_worker.start_fit_wave)
         self.fit_wind_box_start = tk.Spinbox(self.frame2, from_=0, to=400, increment=0.1, width=5,
                                              textvariable=self.fit_wind_start, command=self.update_fit_wind_start)
-        # self.fit_wind_box_start.grid(row=0, column=1)
-        self.fit_wind_box_start.pack(side=tk.LEFT)
-
-        label2 = tk.Label(self.frame2, text='Fit wavelength (max.):').pack(side=tk.LEFT)
-        # label2.grid(row=0, column=2)
         self.fit_wind_end = tk.DoubleVar()
         self.fit_wind_end.set(self.doas_worker.end_fit_wave)
         self.fit_wind_box_end = tk.Spinbox(self.frame2, from_=1, to=400, increment=0.1, width=5,
                                            textvariable=self.fit_wind_end, command=self.update_fit_wind_end)
-        # self.fit_wind_box_end.grid(row=0, column=3)
-        self.fit_wind_box_end.pack(side=tk.LEFT)
+
+        self.fit_wind_box_end.pack(side=tk.RIGHT)
+        label = tk.Label(self.frame2, text='Fit wavelength (max.):').pack(side=tk.RIGHT)
+        self.fit_wind_box_start.pack(side=tk.RIGHT)
+        label = tk.Label(self.frame2, text='Fit wavelength (min.):').pack(side=tk.RIGHT)
 
         # ------------------------------------------------
         # FIGURE SETUP
@@ -74,16 +88,29 @@ class SpectraPlot:
         self.ax.legend(('Dark', 'Clear', 'Plume'), loc=2, framealpha=1)
         self.fig.tight_layout()
 
-        self.min_line = self.ax.plot([self.doas_worker.start_fit_wave,self.doas_worker.start_fit_wave],
+        # Stray light
+        self.min_stray_line = self.ax.plot([self.doas_worker.start_stray_wave,self.doas_worker.start_stray_wave],
+                                     [0, self.max_DN], 'm')
+        self.max_stray_line = self.ax.plot([self.doas_worker.end_stray_wave,self.doas_worker.end_stray_wave],
+                                     [0, self.max_DN], 'm')
+
+        width = self.doas_worker.end_stray_wave - self.doas_worker.start_stray_wave
+        self.stray_range = Rectangle((self.doas_worker.start_stray_wave,0), width=width, height=self.max_DN,
+                                  fill=True, facecolor='m', alpha=0.2)
+        self.stray_range_patch = self.ax.add_patch(self.stray_range)
+
+        # Fit window
+        self.min_line = self.ax.plot([self.doas_worker.start_fit_wave, self.doas_worker.start_fit_wave],
                                      [0, self.max_DN], 'y')
-        self.max_line = self.ax.plot([self.doas_worker.end_fit_wave,self.doas_worker.end_fit_wave],
+        self.max_line = self.ax.plot([self.doas_worker.end_fit_wave, self.doas_worker.end_fit_wave],
                                      [0, self.max_DN], 'y')
 
         width = self.doas_worker.end_fit_wave - self.doas_worker.start_fit_wave
-        self.fit_wind = Rectangle((self.doas_worker.start_fit_wave,0), width=width, height=self.max_DN,
+        self.fit_wind = Rectangle((self.doas_worker.start_fit_wave, 0), width=width, height=self.max_DN,
                                   fill=True, facecolor='y', alpha=0.2)
         self.fit_wind_patch = self.ax.add_patch(self.fit_wind)
 
+        # Organise and draw canvas
         self.canv = FigureCanvasTkAgg(self.fig, master=self.frame)
         self.canv.draw()
         self.canv.get_tk_widget().pack(side=tk.TOP, fill=tk.BOTH, expand=True)
@@ -104,6 +131,41 @@ class SpectraPlot:
         """Update clear plot with new data"""
         self.ax.lines[2].set_data(self.doas_worker.wavelengths, self.doas_worker.plume_spec_raw)
         self.ax.set_xlim([self.doas_worker.wavelengths[0], self.doas_worker.wavelengths[-1]])
+        self.canv.draw()
+
+    def update_stray_start(self):
+        """Updates stray light range on plot"""
+        stray_start = self.stray_start.get()
+
+        # Ensure the end of the stray range doesn't become less than the start
+        if stray_start >= self.stray_end.get():
+            stray_start = self.stray_end.get() - 0.1
+            self.stray_start.set(stray_start)
+
+        # Update DOASWorker with new stray range
+        self.doas_worker.start_stray_wave = stray_start
+
+        # Update plot
+        self.min_stray_line[0].set_data([self.doas_worker.start_stray_wave, self.doas_worker.start_stray_wave], [0, self.max_DN])
+        self.stray_range.set_x(self.doas_worker.start_stray_wave)
+        self.stray_range.set_width(self.doas_worker.end_stray_wave - self.doas_worker.start_stray_wave)
+        self.canv.draw()
+
+    def update_stray_end(self):
+        """Updates stray light range on plot"""
+        stray_end = self.stray_end.get()
+
+        # Ensure the end of the stray range doesn't become less than the start
+        if stray_end <= self.stray_start.get():
+            stray_end = self.stray_start.get() + 0.1
+            self.stray_end.set(stray_end)
+
+        # Update DOASWorker with new stray range
+        self.doas_worker.end_stray_wave = stray_end
+
+        # Update plot
+        self.max_stray_line[0].set_data([self.doas_worker.end_stray_wave, self.doas_worker.end_stray_wave], [0, self.max_DN])
+        self.stray_range.set_width(self.doas_worker.end_stray_wave - self.doas_worker.start_stray_wave)
         self.canv.draw()
 
     def update_fit_wind_start(self):
@@ -131,7 +193,6 @@ class SpectraPlot:
         # Ensure the end of the fit window doesn't become less than the start
         if fit_wind_end <= self.fit_wind_start.get():
             fit_wind_end = self.fit_wind_start.get() + 0.1
-            print(fit_wind_end)
             self.fit_wind_end.set(fit_wind_end)
 
         # Update DOASWorker with new fit window

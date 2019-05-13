@@ -15,7 +15,7 @@ class SpecCtrl:
 
         # Set integration time (ALL IN MICROSECONDS)
         self._int_limit_lower = 1000        # Lower integration time limit
-        self._int_limit_upper = 10000000     # Upper integration time limit
+        self._int_limit_upper = 20000000     # Upper integration time limit
         self._int_time = None               # Integration time attribute
         self.int_time = int_time
 

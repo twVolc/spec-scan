@@ -197,7 +197,7 @@ class PySpec(ttk.Frame):
             self.nameRef.configure(text='...' + self.ref_spec_path[-50:])
         else:
             self.nameRef.configure(text=self.ref_spec_path)
-        self.DOAS.load_reference_spectrum(self.ref_spec_path)
+        self.DOAS.load_reference_spectrum(self.ref_spec_path, 'SO2')
 
         self.plot_ref_spec()
 
