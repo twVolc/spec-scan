@@ -37,12 +37,16 @@ class DOASWorker:
         self.fit_window_ref = None  # Placeholder for shifted fitting window for the reference spectrum
         self.wave_fit = True        # If True, wavelength parameters are used to define fitting window
 
-        self.wavelengths = None     # Placeholder for wavelengths attribute which contains all wavelengths of spectra
-        self.dark_spec = None       # Dark spectrum
-        self.clear_spec_raw = None  # Clear (fraunhofer) spectrum - not dark corrected
-        self.plume_spec_raw = None  # In-plume spectrum (main one which is used for calculation of SO2
-        self.ref_spec = dict()      # Create empty dictionary for holding reference spectra
+        self.wavelengths = None         # Placeholder for wavelengths attribute which contains all wavelengths of spectra
+        self.dark_spec = None           # Dark spectrum
+        self.clear_spec_raw = None      # Clear (fraunhofer) spectrum - not dark corrected
+        self.plume_spec_raw = None      # In-plume spectrum (main one which is used for calculation of SO2
+        self.clear_spec_corr = None     # Clear (fraunhofer) spectrum - typically dark corrected and stray light corrected
+        self.plume_spec_corr = None     # In-plume spectrum (main one which is used for calculation of SO2
+        self.ref_spec = dict()          # Create empty dictionary for holding reference spectra
+        self.ref_spec_interp = dict()   # Empty dictionary to hold reference spectra after sampling to spectrometer wavelengths
         self.ref_spec_types = ['SO2', 'O3', 'ring'] # List of reference spectra types accepted/expected
+        self.ILS = None                 # Instrument line shape (will be a numpy array)
 
         self.poly_order = 2  # Order of polynomial used to fit residual
         (self.filt_B, self.filt_A) = signal.butter(10, 0.065, btype='highpass')
@@ -122,7 +126,7 @@ class DOASWorker:
 
 
 
-    def load_reference_spectrum(self, pathname, species):
+    def load_ref_spec(self, pathname, species):
         """Load raw reference spectrum"""
         self.ref_spec[species] = np.loadtxt(pathname)
 
@@ -133,11 +137,21 @@ class DOASWorker:
         #
         # --------------------------------
 
+    def interp_ref_spec(self):
+        """Interpolate reference spectrum to match wavelengths of the spectrometer"""
+        species = [f for f in self.ref_spec_types if f in self.ref_spec.keys()]
+
+        # Loop through all reference species we have loaded and resample their data
+        for f in species:
+            self.ref_spec_interp[f] = np.interp(self.wavelengths, self.ref_spec[f][:, 0], self.ref_spec[f][:, 1])
+
+
+
     def load_calibration_spectrum(self, pathname):
         """Load Calibation image for spectrometer"""
         pass
 
-    def set_fit_window(self):
+    def set_fit_windows(self):
         """Define fitting window for DOAS procedure
         If wavelength domain is used, first convert this to pixel space"""
         if self.wave_fit:
@@ -145,17 +159,23 @@ class DOASWorker:
                 print('Error, first run get_ref_spectrum() to define wavelengths vector')
                 return
 
-            ## THis shouldn't be necessary now as I set these during setting the wavelength fit start/end
-            # wave_dif_start = self.wavelengths - self.start_fit_wave
-            # wave_dif_end = self.wavelengths - self.end_fit_wave
-            # self._start_fit_pix = wave_dif_start.index(np.amin(wave_dif_start))  # Find the index which represents the wavelengths closest to the defined starting wavelength for the fit
-            # self._end_fit_pix = wave_dif_end.index(np.amin(wave_dif_end))  # As above, but for ending wavelength
-
         self.fit_window = np.arange(self._start_fit_pix, self._end_fit_pix)  # Fitting window (in Pixel space)
+        self.fit_window_ref = self.fit_window + self.shift
 
-    def shift_spectrum(self):
-        """Shift fitting window for reference spectrum"""
-        self.fit_window_ref = self.fit_window - self.shift  # Shifting the fitting window indices for the ref spectrum
+    def dark_corr_spectra(self):
+        """Subtract dark spectrum from spectra"""
+        self.clear_spec_corr = self.clear_spec_raw - self.dark_spec
+        self.plume_spec_corr = self.plume_spec_raw - self.dark_spec
+
+    def stray_corr_spectra(self):
+        """Correct spectra for stray light - spectra are assumed to be dark-corrected prior to running this function"""
+        # Set the range of stray pixels
+        stray_range = np.arange(self._start_stray_pix, self._end_stray_pix + 1)
+
+        # Correct clear and plume spectra (assumed to already be dark subtracted)
+        self.clear_spec_corr = self.clear_spec_corr - np.mean(self.clear_spec_corr[stray_range])
+        self.plume_spec_corr = self.plume_spec_corr - np.mean(self.plume_spec_corr[stray_range])
+
 
     def load_spec(self):
         """Load spectrum"""
@@ -200,8 +220,8 @@ class DOASWorker:
     def poly_DOAS(self):
         """Performs main processing in polynomial fitting DOAS retrieval"""
 
-        self.abs_spec = np.log(np.divide(self.clear_spec_raw, self.plume_spec))  # Calculate absorbance
-        self.ref_spec_cut = self.ref_spec[self.fit_window_ref]
+        self.abs_spec = np.log(np.divide(self.clear_spec_corr, self.plume_spec_corr))  # Calculate absorbance
+        self.ref_spec_cut = self.ref_spec[self.ref_spec_types[0]][self.fit_window_ref]
         self.abs_spec_cut = self.abs_spec[self.fit_window]
 
         idx = 0
@@ -220,7 +240,7 @@ class DOASWorker:
 
     def fltr_DOAS(self):
         """Performs main retrieval in digital filtering DOAS retrieval"""
-        self.abs_spec = np.log(np.divide(self.clear_spec_raw, self.plume_spec))  # Calculate absorbance
+        self.abs_spec = np.log(np.divide(self.clear_spec_corr, self.plume_spec_corr))  # Calculate absorbance
         self.abs_spec_filt = signal.lfilter(self.filt_B, self.filt_A, self.abs_spec)  # Filter absorbance spectrum
 
         self.ref_spec_cut = self.ref_spec[self.fit_window_ref]
@@ -262,7 +282,7 @@ class DOASWorker:
     def process_DOAS(self):
         """Handles the order of DOAS processing"""
         # Check we have all of the correct spectra to perform processing
-        if self.clear_spec_raw is None or self.plume_spec_raw is None or self.wavelengths:
+        if self.clear_spec_raw is None or self.plume_spec_raw is None or self.wavelengths is None:
             raise SpectraError('Require clear and plume spectra for DOAS processing')
 
         if self.ref_spec_types[0] not in self.ref_spec.keys():
@@ -271,7 +291,24 @@ class DOASWorker:
         if self.dark_spec is None:
             print('Warning! No dark spectrum present, processing without dark subtraction')
 
+            # Set raw spectra to the corrected spectra, ignoring that they have not been dark corrected
+            self.clear_spec_corr = self.clear_spec_raw
+            self.plume_spec_corr = self.plume_spec_raw
+        else:
+            self.dark_corr_spectra()
 
+        # Correct spectra for stray light
+        self.stray_corr_spectra()
+
+        # Set fitting windows for acquired and reference spectra
+        self.set_fit_windows()
+
+        # Resample reference spectra
+        self.interp_ref_spec()
+
+        # Run processing
+
+        # PErhaps use astropy.convolution for convolving with instrument lineshape
 
 
 
@@ -293,5 +330,4 @@ class SpectrometerCal:
 if __name__ == "__main__":
     doas_process = DOASWorker(2)
     doas_process.get_ref_spectrum()
-    doas_process.set_fit_window()
-    doas_process.shift_spectrum()
+    doas_process.set_fit_windows()

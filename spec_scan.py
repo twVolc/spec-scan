@@ -33,6 +33,7 @@ from config_parser import config_parser
 from gui_subs import *
 from acquisition_gui import AcquisitionFrame
 from plotting_gui import SpectraPlot, DOASPlot
+from calibration_gui import CalPlot
 
 class PySpec(ttk.Frame):
     '''PySpec GUI'''
@@ -107,12 +108,18 @@ class PySpec(ttk.Frame):
         # ==============================================================================================================
         # Calibration work - reference spectrum etc
         # ==============================================================================================================
+        self.ILS_frame = CalPlot(self.calibFrame, self.acq_frame.spec_ctrl, self.DOAS)
+        self.ILS_frame.frame.pack(side=tk.RIGHT, fill=tk.Y, expand=1, anchor='e')
+
+
+
         # -------------------------
         # Reference Spectrum Setup
         # -------------------------
         self.refFrame = tk.LabelFrame(self.calibFrame, text='Reference Spectrum', font=self.mainFontBold,
                                       relief=tk.RAISED, borderwidth=2, bg=self.bgColour)
-        self.refFrame.grid(row=0, column=0, padx=self.pdx, pady=self.pdy)
+        # self.refFrame.grid(row=0, column=0, padx=self.pdx, pady=self.pdy)
+        self.refFrame.pack(side=tk.LEFT)
 
         self.loadRefFrame = tk.Frame(self.refFrame)
         self.loadRefFrame.grid(row=0, column=0, sticky='w')
@@ -137,51 +144,51 @@ class PySpec(ttk.Frame):
         self.refCanvas.get_tk_widget().grid(row=1, column=0)
         # --------------------------------------------------------------------------------------------------------------
 
-        # -----------------------
-        # Calibration image setup
-        # -----------------------
-        self.calFrame = tk.LabelFrame(self.calibFrame, text='PiSpec Calibration Spectrum', font=self.mainFontBold,
-                                      relief=tk.RAISED, borderwidth=2, bg=self.bgColour)
-        self.calFrame.grid(row=0, column=1, padx=self.pdx, pady=self.pdy)
-
-        self.loadCalFrame = tk.Frame(self.calFrame)
-        self.loadCalFrame.grid(row=0, column=0, sticky='w')
-        self.labelCal = tk.Label(self.loadCalFrame, text='Filename:', font=self.mainFontBold)
-        self.labelCal.grid(row=0, column=0, padx=self.pdx, pady=self.pdy)
-        self.nameCal = tk.Label(self.loadCalFrame, text='None Selected', font=self.mainFont)
-        self.nameCal.grid(row=0, column=1, padx=self.pdx, pady=self.pdy)
-        self.selectCal = tk.Button(self.loadCalFrame, text='Load Image', command=self.choose_cal_img)
-        self.selectCal.grid(row=0, column=2, padx=self.pdx, pady=self.pdy)
-
-        # Plot reference spectrum
-        fig_height_ratios = [5, 2]
-        self.AxCal = [0, 0]
-        self.FigCal = plt.Figure(figsize=self.cal_fig_size, dpi=self.dpi)
-        gs = gridspec.GridSpec(2, 1, height_ratios=fig_height_ratios)
-        # gs.update(wspace= 0.000000001, hspace=0.00000000001)
-        self.AxCal[0] = self.FigCal.add_subplot(gs[0])
-        self.AxCal[0].set_aspect(1)
-        self.AxCal[1] = self.FigCal.add_subplot(gs[1])
-        self.AxCal[1].set_aspect((fig_height_ratios[1]/fig_height_ratios[0]) * (self.imgSizeY/self.maxDN))
-        self.FigCal.subplots_adjust(hspace=0.1)
-        self.AxCal[0].tick_params(axis='both', direction='in', top='on', right='on')
-        self.AxCal[1].tick_params(axis='both', direction='in', top='on', right='on')
-
-        self.AxCal[0].set_title('Calibration spectrum: None')
-        self.AxCal[0].set_ylabel('Pixel')
-        self.AxCal[0].set_ylim([self.imgSizeY-1, 0])
-        self.AxCal[0].set_xlim([0, self.imgSizeX-1])
-        self.AxCal[0].set_xticklabels([])
-
-
-        self.AxCal[1].set_ylabel('DN')
-        self.AxCal[1].set_xlabel('Pixel')
-        self.AxCal[1].set_ylim([0, self.maxDN])
-        self.AxCal[1].set_xlim([0, self.imgSizeX-1])
-
-        self.calCanvas = FigureCanvasTkAgg(self.FigCal, master=self.calFrame)
-        self.calCanvas.draw()
-        self.calCanvas.get_tk_widget().grid(row=1, column=0)
+        # # -----------------------
+        # # Calibration image setup
+        # # -----------------------
+        # self.calFrame = tk.LabelFrame(self.calibFrame, text='PiSpec Calibration Spectrum', font=self.mainFontBold,
+        #                               relief=tk.RAISED, borderwidth=2, bg=self.bgColour)
+        # self.calFrame.grid(row=0, column=1, padx=self.pdx, pady=self.pdy)
+        #
+        # self.loadCalFrame = tk.Frame(self.calFrame)
+        # self.loadCalFrame.grid(row=0, column=0, sticky='w')
+        # self.labelCal = tk.Label(self.loadCalFrame, text='Filename:', font=self.mainFontBold)
+        # self.labelCal.grid(row=0, column=0, padx=self.pdx, pady=self.pdy)
+        # self.nameCal = tk.Label(self.loadCalFrame, text='None Selected', font=self.mainFont)
+        # self.nameCal.grid(row=0, column=1, padx=self.pdx, pady=self.pdy)
+        # self.selectCal = tk.Button(self.loadCalFrame, text='Load Image', command=self.choose_cal_img)
+        # self.selectCal.grid(row=0, column=2, padx=self.pdx, pady=self.pdy)
+        #
+        # # Plot reference spectrum
+        # fig_height_ratios = [5, 2]
+        # self.AxCal = [0, 0]
+        # self.FigCal = plt.Figure(figsize=self.cal_fig_size, dpi=self.dpi)
+        # gs = gridspec.GridSpec(2, 1, height_ratios=fig_height_ratios)
+        # # gs.update(wspace= 0.000000001, hspace=0.00000000001)
+        # self.AxCal[0] = self.FigCal.add_subplot(gs[0])
+        # self.AxCal[0].set_aspect(1)
+        # self.AxCal[1] = self.FigCal.add_subplot(gs[1])
+        # self.AxCal[1].set_aspect((fig_height_ratios[1]/fig_height_ratios[0]) * (self.imgSizeY/self.maxDN))
+        # self.FigCal.subplots_adjust(hspace=0.1)
+        # self.AxCal[0].tick_params(axis='both', direction='in', top='on', right='on')
+        # self.AxCal[1].tick_params(axis='both', direction='in', top='on', right='on')
+        #
+        # self.AxCal[0].set_title('Calibration spectrum: None')
+        # self.AxCal[0].set_ylabel('Pixel')
+        # self.AxCal[0].set_ylim([self.imgSizeY-1, 0])
+        # self.AxCal[0].set_xlim([0, self.imgSizeX-1])
+        # self.AxCal[0].set_xticklabels([])
+        #
+        #
+        # self.AxCal[1].set_ylabel('DN')
+        # self.AxCal[1].set_xlabel('Pixel')
+        # self.AxCal[1].set_ylim([0, self.maxDN])
+        # self.AxCal[1].set_xlim([0, self.imgSizeX-1])
+        #
+        # self.calCanvas = FigureCanvasTkAgg(self.FigCal, master=self.calFrame)
+        # self.calCanvas.draw()
+        # self.calCanvas.get_tk_widget().grid(row=1, column=0)
 
 
 
@@ -197,7 +204,7 @@ class PySpec(ttk.Frame):
             self.nameRef.configure(text='...' + self.ref_spec_path[-50:])
         else:
             self.nameRef.configure(text=self.ref_spec_path)
-        self.DOAS.load_reference_spectrum(self.ref_spec_path, 'SO2')
+        self.DOAS.load_ref_spec(self.ref_spec_path, 'SO2')
 
         self.plot_ref_spec()
 
