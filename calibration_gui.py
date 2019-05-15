@@ -155,6 +155,7 @@ class CalPlot:
         # Correct calibation spectrum if we have one
         if self.cal_spec_raw is not None:
             self.cal_spec_corr = self.cal_spec_raw - self.dark_spec
+            self.cal_spec_corr[self.cal_spec_corr < 0] = 0
             self.extract_ILS()
 
         # Generate filename based on time, then save file as text
@@ -182,6 +183,7 @@ class CalPlot:
         # Dark subtract if we can
         if self.dark_spec is not None:
             self.cal_spec_corr = self.cal_spec_raw - self.dark_spec
+            self.cal_spec_corr[self.cal_spec_corr < 0] = 0
             self.extract_ILS()
 
         # Generate filename based on time, then save file as text
@@ -220,6 +222,9 @@ class CalPlot:
 
     def __check_connection__(self):
         """Checks spectrometer connection"""
+        if isinstance(self.spec_ctrl, type(None)):
+            print('No spectrometer found')
+            return 0
         if self.spec_ctrl.spec is None:
             try:
                 self.spec_ctrl.find_device()
@@ -285,8 +290,9 @@ class CalPlot:
         end_idx = np.argmin(np.absolute(self.wavelengths - self.ILS_end.get())) + 1
 
         # Extract ILS and normalise it
-        self.ILS = self.cal_spec_corr[start_idx:end_idx]
-        self.ILS /= np.max(self.ILS)
+        # Need to use copy() here, otherwise we end up modifying cal_spec_corr when modifying ILS
+        self.ILS = np.copy(self.cal_spec_corr[start_idx:end_idx])
+        self.ILS /= np.amax(self.ILS)
 
         # Extract wavelengths then set to start at 0 nm
         self.ILS_wavelengths = self.wavelengths[start_idx:end_idx] - self.wavelengths[start_idx]
