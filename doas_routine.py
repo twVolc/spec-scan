@@ -9,6 +9,7 @@ import glob
 import tkinter as tk
 from tkinter import filedialog
 import matplotlib.pyplot as plt
+from astropy.convolution import convolve
 
 class DOASWorker:
     """Class to control DOAS processing
@@ -45,6 +46,9 @@ class DOASWorker:
         self.plume_spec_corr = None     # In-plume spectrum (main one which is used for calculation of SO2
         self.ref_spec = dict()          # Create empty dictionary for holding reference spectra
         self.ref_spec_interp = dict()   # Empty dictionary to hold reference spectra after sampling to spectrometer wavelengths
+        self.ref_spec_conv = dict()     # Empty dictionary to hold reference spectra after convolving with ILS
+        self.ref_spec_cut = dict()
+        self.ref_spec_fit = dict()
         self.ref_spec_types = ['SO2', 'O3', 'ring'] # List of reference spectra types accepted/expected
         self.ILS = None                 # Instrument line shape (will be a numpy array)
 
@@ -137,14 +141,15 @@ class DOASWorker:
         #
         # --------------------------------
 
-    def interp_ref_spec(self):
-        """Interpolate reference spectrum to match wavelengths of the spectrometer"""
+    def conv_ref_spec(self):
+        """Convolves reference spectrum with instument line shape (ILS)
+        after first interpolating to spectrometer wavelengths"""
         species = [f for f in self.ref_spec_types if f in self.ref_spec.keys()]
 
         # Loop through all reference species we have loaded and resample their data
         for f in species:
             self.ref_spec_interp[f] = np.interp(self.wavelengths, self.ref_spec[f][:, 0], self.ref_spec[f][:, 1])
-
+            self.ref_spec_conv[f] = convolve(self.ref_spec_interp[f], self.ILS)
 
 
     def load_calibration_spectrum(self, pathname):
@@ -221,12 +226,12 @@ class DOASWorker:
         """Performs main processing in polynomial fitting DOAS retrieval"""
 
         self.abs_spec = np.log(np.divide(self.clear_spec_corr, self.plume_spec_corr))  # Calculate absorbance
-        self.ref_spec_cut = self.ref_spec[self.ref_spec_types[0]][self.fit_window_ref]
+        self.ref_spec_cut['SO2'] = self.ref_spec[self.ref_spec_types['SO2']][self.fit_window_ref]
         self.abs_spec_cut = self.abs_spec[self.fit_window]
 
         idx = 0
         for i in self.vals_ca:
-            ref_spec_fit = self.ref_spec_cut * i  # Our iterative guess at the SO2 column density
+            ref_spec_fit = self.ref_spec_cut['SO2'] * i  # Our iterative guess at the SO2 column density
             residual = self.abs_spec_cut - ref_spec_fit  # Calculate resultant residual from spectrum fitting
             poly_fit = np.polyfit(self.fit_window, residual, self.poly_order)  # Fit polynomial to residual
             poly_vals = np.polyval(poly_fit, self.fit_window)  # Generate polynomial values for fitting window
@@ -243,12 +248,12 @@ class DOASWorker:
         self.abs_spec = np.log(np.divide(self.clear_spec_corr, self.plume_spec_corr))  # Calculate absorbance
         self.abs_spec_filt = signal.lfilter(self.filt_B, self.filt_A, self.abs_spec)  # Filter absorbance spectrum
 
-        self.ref_spec_cut = self.ref_spec[self.fit_window_ref]
+        self.ref_spec_cut['SO2'] = self.ref_spec['SO2'][self.fit_window_ref]
         self.abs_spec_cut = self.abs_spec[self.fit_window]
 
         idx = 1
         for i in self.vals_ca:
-            ref_spec_fit = self.ref_spec_cut * i
+            ref_spec_fit = self.ref_spec_cut['SO2'] * i
 
             self.mse_vals[idx] = np.mean(np.power(self.abs_spec_cut, ref_spec_fit, 2))  # Calculate MSE of fit
             idx += 1
@@ -303,13 +308,13 @@ class DOASWorker:
         # Set fitting windows for acquired and reference spectra
         self.set_fit_windows()
 
-        # Resample reference spectra
-        self.interp_ref_spec()
+        # Convolve reference spectrum with the instrument lineshape
+        self.conv_ref_spec()
 
         # Run processing
+        self.fltr_DOAS()
 
-        # PErhaps use astropy.convolution for convolving with instrument lineshape
-
+        print(self.column_amount)
 
 
 

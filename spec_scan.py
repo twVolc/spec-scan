@@ -33,7 +33,7 @@ from config_parser import config_parser
 from gui_subs import *
 from acquisition_gui import AcquisitionFrame
 from plotting_gui import SpectraPlot, DOASPlot
-from calibration_gui import CalPlot
+from calibration_gui import CalPlot, RefPlot
 
 class PySpec(ttk.Frame):
     '''PySpec GUI'''
@@ -101,163 +101,16 @@ class PySpec(ttk.Frame):
         self.acq_frame = AcquisitionFrame(self.mainFrame, self.DOAS, self.spec_frame)
         self.acq_frame.frame.pack(side='left', expand=1, anchor='nw')
 
-
-
-
-
         # ==============================================================================================================
         # Calibration work - reference spectrum etc
         # ==============================================================================================================
         self.ILS_frame = CalPlot(self.calibFrame, self.acq_frame.spec_ctrl, self.DOAS)
         self.ILS_frame.frame.pack(side=tk.RIGHT, fill=tk.Y, expand=1, anchor='e')
 
+        self.ref_frame = RefPlot(self.calibFrame, self.DOAS, self.ref_spec_init_dir, self.ref_fig_size, self.dpi)
+        self.ref_frame.frame.pack(side=tk.LEFT)
 
-
-        # -------------------------
-        # Reference Spectrum Setup
-        # -------------------------
-        self.refFrame = tk.LabelFrame(self.calibFrame, text='Reference Spectrum', font=self.mainFontBold,
-                                      relief=tk.RAISED, borderwidth=2, bg=self.bgColour)
-        # self.refFrame.grid(row=0, column=0, padx=self.pdx, pady=self.pdy)
-        self.refFrame.pack(side=tk.LEFT)
-
-        self.loadRefFrame = tk.Frame(self.refFrame)
-        self.loadRefFrame.grid(row=0, column=0, sticky='w')
-        self.labelRef = tk.Label(self.loadRefFrame, text='Filename:', font=self.mainFontBold)
-        self.labelRef.grid(row=0, column=0, padx=self.pdx, pady=self.pdy)
-        self.nameRef = tk.Label(self.loadRefFrame, text='None Selected', font=self.mainFont)
-        self.nameRef.grid(row=0, column=1, padx=self.pdx, pady=self.pdy)
-        self.selectRef = tk.Button(self.loadRefFrame, text='Load Spectrum', command=self.choose_ref_spec)
-        self.selectRef.grid(row=0, column=2, padx=self.pdx, pady=self.pdy)
-
-        # Plot reference spectrum
-        self.FigRef = plt.Figure(figsize=self.ref_fig_size, dpi=self.dpi)
-        self.AxRef = self.FigRef.add_subplot(111)
-
-        self.AxRef.set_title('Reference spectrum: None')
-        self.AxRef.set_ylabel(r'Absorption Cross Section [cm$^2$/molecule]')
-        self.AxRef.set_xlabel('Wavelength [nm]')
-        self.AxRef.tick_params(axis='both', direction='in', top='on', right='on')
-
-        self.refCanvas = FigureCanvasTkAgg(self.FigRef, master=self.refFrame)
-        self.refCanvas.draw()
-        self.refCanvas.get_tk_widget().grid(row=1, column=0)
-        # --------------------------------------------------------------------------------------------------------------
-
-        # # -----------------------
-        # # Calibration image setup
-        # # -----------------------
-        # self.calFrame = tk.LabelFrame(self.calibFrame, text='PiSpec Calibration Spectrum', font=self.mainFontBold,
-        #                               relief=tk.RAISED, borderwidth=2, bg=self.bgColour)
-        # self.calFrame.grid(row=0, column=1, padx=self.pdx, pady=self.pdy)
-        #
-        # self.loadCalFrame = tk.Frame(self.calFrame)
-        # self.loadCalFrame.grid(row=0, column=0, sticky='w')
-        # self.labelCal = tk.Label(self.loadCalFrame, text='Filename:', font=self.mainFontBold)
-        # self.labelCal.grid(row=0, column=0, padx=self.pdx, pady=self.pdy)
-        # self.nameCal = tk.Label(self.loadCalFrame, text='None Selected', font=self.mainFont)
-        # self.nameCal.grid(row=0, column=1, padx=self.pdx, pady=self.pdy)
-        # self.selectCal = tk.Button(self.loadCalFrame, text='Load Image', command=self.choose_cal_img)
-        # self.selectCal.grid(row=0, column=2, padx=self.pdx, pady=self.pdy)
-        #
-        # # Plot reference spectrum
-        # fig_height_ratios = [5, 2]
-        # self.AxCal = [0, 0]
-        # self.FigCal = plt.Figure(figsize=self.cal_fig_size, dpi=self.dpi)
-        # gs = gridspec.GridSpec(2, 1, height_ratios=fig_height_ratios)
-        # # gs.update(wspace= 0.000000001, hspace=0.00000000001)
-        # self.AxCal[0] = self.FigCal.add_subplot(gs[0])
-        # self.AxCal[0].set_aspect(1)
-        # self.AxCal[1] = self.FigCal.add_subplot(gs[1])
-        # self.AxCal[1].set_aspect((fig_height_ratios[1]/fig_height_ratios[0]) * (self.imgSizeY/self.maxDN))
-        # self.FigCal.subplots_adjust(hspace=0.1)
-        # self.AxCal[0].tick_params(axis='both', direction='in', top='on', right='on')
-        # self.AxCal[1].tick_params(axis='both', direction='in', top='on', right='on')
-        #
-        # self.AxCal[0].set_title('Calibration spectrum: None')
-        # self.AxCal[0].set_ylabel('Pixel')
-        # self.AxCal[0].set_ylim([self.imgSizeY-1, 0])
-        # self.AxCal[0].set_xlim([0, self.imgSizeX-1])
-        # self.AxCal[0].set_xticklabels([])
-        #
-        #
-        # self.AxCal[1].set_ylabel('DN')
-        # self.AxCal[1].set_xlabel('Pixel')
-        # self.AxCal[1].set_ylim([0, self.maxDN])
-        # self.AxCal[1].set_xlim([0, self.imgSizeX-1])
-        #
-        # self.calCanvas = FigureCanvasTkAgg(self.FigCal, master=self.calFrame)
-        # self.calCanvas.draw()
-        # self.calCanvas.get_tk_widget().grid(row=1, column=0)
-
-
-
-    def choose_ref_spec(self):
-        """Load reference spectrum"""
-        self.ref_spec_path = filedialog.askopenfilename(initialdir=self.ref_spec_init_dir,
-                                                        title='Select reference spectrum',
-                                                        filetypes=(("Text files", "*.txt"), ("All files", "*.*")))
-        self.ref_spec_file = self.ref_spec_path.split('/')[-1]
-        if not self.ref_spec_path:
-            return
-        if len(self.ref_spec_path) > 53:
-            self.nameRef.configure(text='...' + self.ref_spec_path[-50:])
-        else:
-            self.nameRef.configure(text=self.ref_spec_path)
-        self.DOAS.load_ref_spec(self.ref_spec_path, 'SO2')
-
-        self.plot_ref_spec()
-
-    def plot_ref_spec(self):
-        """Plot up reference spectrum"""
-        if hasattr(self, 'ref_plot'):  # If we have already plotted a spectra we can just update
-            self.ref_plot.set_data(self.DOAS.ref_spec[:, 0], self.DOAS.ref_spec[:, 1])
-        else:
-            self.ref_plot, = self.AxRef.plot(self.DOAS.ref_spec[:, 0], self.DOAS.ref_spec[:, 1])
-        self.AxRef.set_xlim([self.DOAS.ref_spec[0, 0], self.DOAS.ref_spec[-1, 0]])
-        self.AxRef.set_ylim([0, np.amax(self.DOAS.ref_spec[:, 1])])
-        self.AxRef.set_title('Reference Spectrum: %s' % self.ref_spec_file)
-        self.refCanvas.draw()
-
-    def choose_cal_img(self):
-        """Load reference spectrum"""
-        self.cal_spec_path = filedialog.askopenfilename(initialdir=self.local_dir,
-                                                        title='Select calibration image',
-                                                        filetypes=(("png files", "*.png"), ("All files", "*.*")))
-        self.cal_spec_file = self.cal_spec_path.split('/')[-1]
-        if not self.cal_spec_path:
-            return
-        if len(self.cal_spec_path) > 53:
-            self.nameCal.configure(text='...' + self.cal_spec_path[-50:])
-        else:
-            self.nameCal.configure(text=self.cal_spec_path)
-        self.DOAS.load_calibration_spectrum(self.cal_spec_path)
-
-
-        self.cal_plot_ctrl()
-
-    def cal_plot_ctrl(self):
-        """Control the plotting of both calibration figures -> draw canvas"""
-        self.plot_cal_img()
-        self.plot_cal_spec()
-        self.calCanvas.draw()
-
-    def plot_cal_img(self):
-        """Display calibration image"""
-        if hasattr(self, 'cal_img_plot'):  # Plot calibation image
-            self.cal_img_plot.set_data(self.DOAS.cal_img)
-        else:
-            self.cal_img_plot = self.AxCal[0].imshow(self.DOAS.cal_img, cmap=cm.Greys_r, interpolation='none', vmin=0,
-                                                    vmax=np.amax(self.maxDN))
-        self.AxCal[0].set_title('Calibration spectrum: %s' % self.cal_spec_file)
-
-    def plot_cal_spec(self):
-        """Display calibration spectrum"""
-        if hasattr(self, 'cal_spec_plot'):
-            self.cal_spec_plot.set_data(self.DOAS.pixel_vector, self.DOAS.cal_spec)
-        else:
-            self.cal_spec_plot, = self.AxCal[1].plot(self.DOAS.pixel_vector, self.DOAS.cal_spec)
-
+        
 
     def exit_app(self):
         """Exit GUI"""

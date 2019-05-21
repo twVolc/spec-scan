@@ -1,5 +1,6 @@
 import tkinter as tk
 import tkinter.ttk as ttk
+from tkinter import filedialog
 
 from matplotlib import pyplot as plt
 from matplotlib.patches import Rectangle
@@ -10,6 +11,7 @@ import numpy as np
 
 from controllers import SpecCtrl, SpectrometerConnectionError
 from doas_routine import DOASWorker
+from gui_subs import SettingsGUI
 
 
 class CalPlot:
@@ -22,6 +24,7 @@ class CalPlot:
         self.doas_worker = doas_worker
 
         self.save_path = self.save_path = 'C:\\Users\\tw9616\\Documents\\PostDoc\\Scanning Spectrometer\\SpecScan\\Spectra\\Cal\\'
+        self.str_len_max = 25   # Maximum string length allowed for filenames before they are abbreviated
 
         self.start_int_time = 100   # Starting integration time
         self.max_DN = 2**16 - 1
@@ -30,6 +33,10 @@ class CalPlot:
         self.dark_spec = None
         self.cal_spec_raw = None
         self.cal_spec_corr = None   # Dark corrected calibration spectrum
+
+        self.ILS_wavelengths = None
+        self.ILS = None
+        self.ILS_path = None        # Path to ILS file
 
         self.__setup_gui__(frame)
 
@@ -59,12 +66,12 @@ class CalPlot:
         self.int_entry = ttk.Entry(self.frame_acq, textvariable=self.int_time, width=5).grid(row=0, column=1, sticky='w')
 
         label = ttk.Label(self.frame_acq, text='Dark spectrum file:').grid(row=1, column=0, sticky='w')
-        self.dark_file_label = ttk.Label(self.frame_acq, text='N/A')
+        self.dark_file_label = ttk.Label(self.frame_acq, text='N/A', width=25)
         self.dark_file_label.grid(row=1, column=1, sticky='w')
         self.dark_button = ttk.Button(self.frame_acq, text='Dark Capture',
                                       command=self.dark_capture).grid(row=1, column=2, sticky='nsew')
         label = ttk.Label(self.frame_acq, text='Calibration spectrum file:').grid(row=2, column=0, sticky='w')
-        self.cal_file_label = ttk.Label(self.frame_acq, text='N/A')
+        self.cal_file_label = ttk.Label(self.frame_acq, text='N/A', width=25)
         self.cal_file_label.grid(row=2, column=1, sticky='w')
         self.cal_button = ttk.Button(self.frame_acq, text='Calibration Capture',
                                        command=self.cal_capture).grid(row=2, column=2, sticky='nsew')
@@ -122,8 +129,32 @@ class CalPlot:
         self.canv.get_tk_widget().pack(side=tk.BOTTOM, fill=tk.BOTH, expand=True)
 
         # --------------------------------------------------------------------------------------------------------------
-        # ILS PLOT
+        # ILS FUCTIONS AND PLOT
         # --------------------------------------------------------------------------------------------------------------
+        # FUNCTIONS
+        self.frame_ILS_func = ttk.Frame(self.frame_ILS, relief=tk.GROOVE, borderwidth=5)
+        self.frame_ILS_func.pack(side=tk.LEFT, anchor='n')
+
+        label1 = tk.Label(self.frame_ILS_func, text='Loaded ILS file:')
+        self.ILS_load_label = tk.Label(self.frame_ILS_func, text='N/A', width=self.str_len_max)
+        self.load_ILS_button = ttk.Button(self.frame_ILS_func, text='Load ILS', command=self.load_ILS)
+
+        label2 = tk.Label(self.frame_ILS_func, text='Saved ILS file:')
+        self.ILS_save_label = tk.Label(self.frame_ILS_func, text='N/A', width=self.str_len_max)
+        self.save_ILS_button = ttk.Button(self.frame_ILS_func, text='Save ILS', command=self.save_ILS)
+
+        label1.grid(row=0, column=0, sticky='w', padx=5, pady=5)
+        self.ILS_load_label.grid(row=0, column=1, padx=5, pady=5)
+        self.load_ILS_button.grid(row=0, column=2, padx=5, pady=5)
+
+        label2.grid(row=1, column=0, sticky='w', padx=5, pady=5)
+        self.ILS_save_label.grid(row=1, column=1, padx=5, pady=5)
+        self.save_ILS_button.grid(row=1, column=2, padx=5, pady=5)
+
+
+
+
+        # PLOT
         self.fig_ILS = plt.Figure(figsize=(6, 3), dpi=100)
         self.ax_ILS = self.fig_ILS.subplots(1, 1)
         self.ax_ILS.set_ylabel('Normalised intensity')
@@ -138,7 +169,7 @@ class CalPlot:
         # Organise and draw canvas
         self.canv_ILS = FigureCanvasTkAgg(self.fig_ILS, master=self.frame_ILS)
         self.canv_ILS.draw()
-        self.canv_ILS.get_tk_widget().pack(side=tk.TOP, fill=tk.BOTH, expand=True)
+        self.canv_ILS.get_tk_widget().pack(side=tk.RIGHT, fill=tk.BOTH, expand=True)
 
     def dark_capture(self):
         """Controls dark spectrum capture"""
@@ -283,6 +314,49 @@ class CalPlot:
         if self.cal_spec_corr is not None:
             self.extract_ILS()
 
+
+    def load_ILS(self):
+        """Loads ILS from text file"""
+        # Bring up dialog to find file
+        self.ILS_path = filedialog.askopenfilename(initialdir=self.save_path,
+                                                   title='Select ILS file',
+                                                   filetypes=(("Text files", "*.txt"), ("All files", "*.*")))
+
+        if not self.ILS_path:
+            return
+
+        # Update label in widget
+        ILS_filename = self.ILS_path.split('/')[-1]
+        if len(ILS_filename) > self.str_len_max:
+            self.ILS_load_label.configure(text='...' + ILS_filename[-(self.str_len_max - 3):])
+        else:
+            self.ILS_load_label.configure(text=ILS_filename)
+
+        # Extract data
+        data = np.loadtxt(self.ILS_path)
+        self.ILS_wavelengths, self.ILS = data.T
+
+        # Update ILS plot
+        self.plot_ILS()
+
+    def save_ILS(self):
+        """Saves ILS to text file"""
+        if self.ILS is None or self.ILS_wavelengths is None:
+            print('No instrument line shape data to save')
+            return
+
+        time = datetime.now().strftime('%Y-%m-%dT%H%M%S')
+        ILS_filename = '{}_ILS.txt'.format(time)
+
+        # Save file to numpy array
+        np.savetxt(self.save_path + ILS_filename, np.transpose([self.ILS_wavelengths, self.ILS]),
+                   header='Instrument line shape\n'
+                          'Line start [nm]: {}\tLine End [nm]: {}\n'
+                          'Wavelength [nm]\tIntensity [DN]'.format(self.ILS_start.get(), self.ILS_end.get()))
+
+        # Update widget label
+        self.ILS_save_label.configure(text=ILS_filename)
+
     def extract_ILS(self):
         """Extracts instrument line shape from the calibration spectrum, then draws it"""
         # Determine indices for extraction of ILS
@@ -297,10 +371,94 @@ class CalPlot:
         # Extract wavelengths then set to start at 0 nm
         self.ILS_wavelengths = self.wavelengths[start_idx:end_idx] - self.wavelengths[start_idx]
 
+        # Update ILS plot
+        self.plot_ILS()
+
+    def plot_ILS(self):
         # Update plot
         self.ax_ILS.lines[0].set_data(self.ILS_wavelengths, self.ILS)
         self.ax_ILS.set_xlim([0, self.ILS_wavelengths[-1]])
         self.canv_ILS.draw()
 
+        # Updates doas worker with ILS every time the plot is updated, so that we are in sync
+        self.doas_worker.ILS = self.ILS
 
 
+class RefPlot:
+    """
+    Plots and allows interaction with the reference spectrum
+    """
+    def __init__(self, frame, doas_worker=DOASWorker(), init_dir='C:\\', fig_size=(10,6), dpi=100):
+        self.doas_worker = doas_worker
+
+        self.init_dir = init_dir
+
+        self.fig_size = fig_size
+        self.dpi = dpi
+
+        self.setts = SettingsGUI()
+        self.pdx = 5
+        self.pdy = 5
+
+        self.__setup_gui__(frame)
+
+
+    def __setup_gui__(self, frame):
+        # -------------------------
+        # Reference Spectrum Setup
+        # -------------------------
+        self.frame = tk.LabelFrame(frame, text='Reference Spectrum', font=self.setts.mainFontBold,
+                                      relief=tk.RAISED, borderwidth=2, bg=self.setts.bgColour)
+        # self.refFrame.grid(row=0, column=0, padx=self.pdx, pady=self.pdy)
+        self.frame.pack(side=tk.LEFT)
+
+        self.loadRefFrame = tk.Frame(self.frame)
+        self.loadRefFrame.grid(row=0, column=0, sticky='w')
+        self.labelRef = tk.Label(self.loadRefFrame, text='Filename:', font=self.setts.mainFontBold)
+        self.labelRef.grid(row=0, column=0, padx=self.pdx, pady=self.pdy)
+        self.nameRef = tk.Label(self.loadRefFrame, text='None Selected', font=self.setts.mainFont)
+        self.nameRef.grid(row=0, column=1, padx=self.pdx, pady=self.pdy)
+        self.selectRef = tk.Button(self.loadRefFrame, text='Load Spectrum', command=self.choose_ref_spec)
+        self.selectRef.grid(row=0, column=2, padx=self.pdx, pady=self.pdy)
+
+        # Plot reference spectrum
+        self.FigRef = plt.Figure(figsize=self.fig_size, dpi=self.dpi)
+        self.AxRef = self.FigRef.add_subplot(111)
+
+        self.AxRef.set_title('Reference spectrum: None')
+        self.AxRef.set_ylabel(r'Absorption Cross Section [cm$^2$/molecule]')
+        self.AxRef.set_xlabel('Wavelength [nm]')
+        self.AxRef.tick_params(axis='both', direction='in', top='on', right='on')
+
+        self.refCanvas = FigureCanvasTkAgg(self.FigRef, master=self.frame)
+        self.refCanvas.draw()
+        self.refCanvas.get_tk_widget().grid(row=1, column=0)
+        # --------------------------------------------------------------------------------------------------------------
+
+    def choose_ref_spec(self):
+        """Load reference spectrum"""
+        self.ref_spec_path = filedialog.askopenfilename(initialdir=self.init_dir,
+                                                        title='Select reference spectrum',
+                                                        filetypes=(("Text files", "*.txt"), ("All files", "*.*")))
+        self.ref_spec_file = self.ref_spec_path.split('/')[-1]
+        if not self.ref_spec_path:
+            return
+        if len(self.ref_spec_path) > 53:
+            self.nameRef.configure(text='...' + self.ref_spec_path[-50:])
+        else:
+            self.nameRef.configure(text=self.ref_spec_path)
+        self.doas_worker.load_ref_spec(self.ref_spec_path, 'SO2')
+
+        self.plot_ref_spec()
+
+    def plot_ref_spec(self):
+        """Plot up reference spectrum"""
+        if hasattr(self, 'ref_plot'):  # If we have already plotted a spectra we can just update
+            self.ref_plot.set_data(self.doas_worker.ref_spec['SO2'][:, 0], self.doas_worker.ref_spec['SO2'][:, 1])
+        else:
+            self.ref_plot, = self.AxRef.plot(self.doas_worker.ref_spec['SO2'][:, 0],
+                                             self.doas_worker.ref_spec['SO2'][:, 1])
+        self.AxRef.set_xlim([self.doas_worker.ref_spec['SO2'][0, 0], self.doas_worker.ref_spec['SO2'][-1, 0]])
+        self.AxRef.set_ylim([0, np.amax(self.doas_worker.ref_spec['SO2'][:, 1])])
+        self.AxRef.set_title('Reference Spectrum: %s' % self.ref_spec_file)
+        self.refCanvas.draw()

@@ -83,13 +83,13 @@ class AcquisitionFrame:
         self.frame2.grid(row=row, column=0, columnspan=2, sticky='nsew')
         self.label3 = ttk.Label(self.frame2, text='Dark spectrum file:').grid(row=0, column=0, sticky='w',
                                                                              padx=self.setts.px, pady=self.setts.py)
-        self.dark_file_label = ttk.Label(self.frame2, text='N/A')
+        self.dark_file_label = ttk.Label(self.frame2, text='N/A', width=25)
         self.dark_file_label.grid(row=0, column=1, sticky='w', padx=self.setts.px, pady=self.setts.py)
         self.dark_button = ttk.Button(self.frame2, text='Dark Capture',
                                       command=self.dark_capture).grid(row=1, column=1, sticky='nsew')
         self.label4 = ttk.Label(self.frame2, text='Clear spectrum file:').grid(row=2, column=0, sticky='w',
                                                                               padx=self.setts.px, pady=self.setts.py)
-        self.clear_file_label = ttk.Label(self.frame2, text='N/A')
+        self.clear_file_label = ttk.Label(self.frame2, text='N/A', width=25)
         self.clear_file_label.grid(row=2, column=1, sticky='w', padx=self.setts.px, pady=self.setts.py)
         self.clear_button = ttk.Button(self.frame2, text='Clear Capture',
                                        command=self.clear_capture).grid(row=3, column=1, sticky='nsew')
@@ -191,6 +191,9 @@ class AcquisitionFrame:
 
         # Update plot with new data
         self.spec_plot.update_plume()
+
+        # Try processing data
+        self.doas_worker.process_DOAS()
 
 
     def acquire_scan(self):
