@@ -5,6 +5,7 @@ from matplotlib import pyplot as plt
 from matplotlib.patches import Rectangle
 from matplotlib.backends.backend_tkagg import FigureCanvasTkAgg
 
+import numpy as np
 import queue
 
 from gui_subs import SettingsGUI
@@ -257,6 +258,7 @@ class DOASPlot:
         for i in range(2):
             self.ax.plot([250, 400], [0, 0], self.plt_colours[i], linewidth=1)
         self.ax.legend(('Measured', 'Fitted reference'), loc=1, framealpha=1)
+        self.ax.set_title('Column density [ppm.m]: N/A')
         self.fig.tight_layout()
 
         self.canv = FigureCanvasTkAgg(self.fig, master=self.frame)
@@ -271,3 +273,18 @@ class DOASPlot:
     def update_stretch(self):
         """Updates DOASWorker stretch value for aligning spectra"""
         self.doas_worker.stretch = self.shift.get()
+
+    def update_plot(self):
+        """Updates doas plot"""
+        # Update plot lines with new data
+        self.ax.lines[0].set_data(self.doas_worker.wavelengths_cut, self.doas_worker.abs_spec_cut)
+        self.ax.lines[1].set_data(self.doas_worker.wavelengths_cut, self.doas_worker.ref_spec_fit['SO2'])
+
+        # Set axis limits
+        self.ax.set_xlim([self.doas_worker.wavelengths_cut[0], self.doas_worker.wavelengths_cut[-1]])
+        ylims = np.amax(np.absolute(self.doas_worker.ref_spec_fit['SO2']))
+        ylims *= 1.1
+        self.ax.set_ylim([-ylims, ylims])
+        self.ax.set_title('Column density [ppm.m]: {}'.format(self.doas_worker.column_amount))
+
+        self.canv.draw()

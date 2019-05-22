@@ -98,7 +98,7 @@ class PySpec(ttk.Frame):
         self.doas_frame.frame.pack(side='top', expand=1, anchor='n')
 
         # Acquisition frame
-        self.acq_frame = AcquisitionFrame(self.mainFrame, self.DOAS, self.spec_frame)
+        self.acq_frame = AcquisitionFrame(self.mainFrame, self.DOAS, self.spec_frame, self.doas_frame)
         self.acq_frame.frame.pack(side='left', expand=1, anchor='nw')
 
         # ==============================================================================================================
@@ -110,7 +110,7 @@ class PySpec(ttk.Frame):
         self.ref_frame = RefPlot(self.calibFrame, self.DOAS, self.ref_spec_init_dir, self.ref_fig_size, self.dpi)
         self.ref_frame.frame.pack(side=tk.LEFT)
 
-        
+
 
     def exit_app(self):
         """Exit GUI"""

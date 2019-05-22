@@ -24,6 +24,8 @@ class DOASWorker:
         # ======================================================================================================================
         # Initial Definitions
         # ======================================================================================================================
+        self.ppmm_conversion = 2.7e15   # convert absorption cross-section in cm2/molecule to ppm.m (MAY NEED TO CHANGE THIS TO A DICTIONARY AS THE CONVERSION MAY DIFFER FOR EACH SPECIES?)
+
         self.shift = 0              # Shift of spectrum in number of pixels
         self.stretch = 0            # Stretch of spectrum
         self._start_stray_pix = None  # Pixel space stray light window definitions
@@ -39,6 +41,7 @@ class DOASWorker:
         self.wave_fit = True        # If True, wavelength parameters are used to define fitting window
 
         self.wavelengths = None         # Placeholder for wavelengths attribute which contains all wavelengths of spectra
+        self.wavelengths_cut = None     # Wavelengths in fit window
         self.dark_spec = None           # Dark spectrum
         self.clear_spec_raw = None      # Clear (fraunhofer) spectrum - not dark corrected
         self.plume_spec_raw = None      # In-plume spectrum (main one which is used for calculation of SO2
@@ -47,8 +50,10 @@ class DOASWorker:
         self.ref_spec = dict()          # Create empty dictionary for holding reference spectra
         self.ref_spec_interp = dict()   # Empty dictionary to hold reference spectra after sampling to spectrometer wavelengths
         self.ref_spec_conv = dict()     # Empty dictionary to hold reference spectra after convolving with ILS
-        self.ref_spec_cut = dict()
-        self.ref_spec_fit = dict()
+        self.ref_spec_cut = dict()      # Ref spectrum cut to fit window
+        self.ref_spec_ppmm = dict()   # Convolved ref spectrum scaled by ppmm_conversion factor
+        self.ref_spec_filter = dict()   # Filtered reference spectrum
+        self.ref_spec_fit = dict()      # Ref spectrum scaled by ppmm (for plotting)
         self.ref_spec_types = ['SO2', 'O3', 'ring'] # List of reference spectra types accepted/expected
         self.ILS = None                 # Instrument line shape (will be a numpy array)
 
@@ -144,12 +149,21 @@ class DOASWorker:
     def conv_ref_spec(self):
         """Convolves reference spectrum with instument line shape (ILS)
         after first interpolating to spectrometer wavelengths"""
+        if self.wavelengths is None:
+            print('No wavelength data to perform convolution')
+            return
+
         species = [f for f in self.ref_spec_types if f in self.ref_spec.keys()]
 
-        # Loop through all reference species we have loaded and resample their data
+        # Need an odd sized array for convolution, so if even we omit the last pixel
+        if self.ILS.size % 2 == 0:
+            self.ILS = self.ILS[:-1]
+
+        # Loop through all reference species we have loaded and resample their data to the spectrometers wavelengths
         for f in species:
             self.ref_spec_interp[f] = np.interp(self.wavelengths, self.ref_spec[f][:, 0], self.ref_spec[f][:, 1])
             self.ref_spec_conv[f] = convolve(self.ref_spec_interp[f], self.ILS)
+            self.ref_spec_ppmm[f] = self.ref_spec_conv[f] * self.ppmm_conversion
 
 
     def load_calibration_spectrum(self, pathname):
@@ -170,7 +184,10 @@ class DOASWorker:
     def dark_corr_spectra(self):
         """Subtract dark spectrum from spectra"""
         self.clear_spec_corr = self.clear_spec_raw - self.dark_spec
+        self.clear_spec_corr[self.clear_spec_corr < 0] = 0
+
         self.plume_spec_corr = self.plume_spec_raw - self.dark_spec
+        self.plume_spec_corr[self.plume_spec_corr < 0] = 0
 
     def stray_corr_spectra(self):
         """Correct spectra for stray light - spectra are assumed to be dark-corrected prior to running this function"""
@@ -179,7 +196,10 @@ class DOASWorker:
 
         # Correct clear and plume spectra (assumed to already be dark subtracted)
         self.clear_spec_corr = self.clear_spec_corr - np.mean(self.clear_spec_corr[stray_range])
+        self.clear_spec_corr[self.clear_spec_corr < 0] = 0
+
         self.plume_spec_corr = self.plume_spec_corr - np.mean(self.plume_spec_corr[stray_range])
+        self.plume_spec_corr[self.plume_spec_corr < 0] = 0
 
 
     def load_spec(self):
@@ -222,16 +242,19 @@ class DOASWorker:
                           '-Not dark-corrected\nWavelength [nm]\tIntensity [DN]')
 
 
-    def poly_DOAS(self):
+    def poly_doas(self):
         """Performs main processing in polynomial fitting DOAS retrieval"""
+        self.wavelengths_cut = self.wavelengths[self.fit_window]  # Extract wavelengths (used in plotting)
 
-        self.abs_spec = np.log(np.divide(self.clear_spec_corr, self.plume_spec_corr))  # Calculate absorbance
-        self.ref_spec_cut['SO2'] = self.ref_spec[self.ref_spec_types['SO2']][self.fit_window_ref]
+        with np.errstate(divide='ignore'):
+            self.abs_spec = np.log(np.divide(self.clear_spec_corr, self.plume_spec_corr))  # Calculate absorbance
+
+        self.ref_spec_cut['SO2'] = self.ref_spec_ppmm[self.ref_spec_types['SO2']][self.fit_window_ref]
         self.abs_spec_cut = self.abs_spec[self.fit_window]
 
         idx = 0
         for i in self.vals_ca:
-            ref_spec_fit = self.ref_spec_cut['SO2'] * i  # Our iterative guess at the SO2 column density
+            ref_spec_fit = self.ref_spec_scaled['SO2'] * i  # Our iterative guess at the SO2 column density
             residual = self.abs_spec_cut - ref_spec_fit  # Calculate resultant residual from spectrum fitting
             poly_fit = np.polyfit(self.fit_window, residual, self.poly_order)  # Fit polynomial to residual
             poly_vals = np.polyval(poly_fit, self.fit_window)  # Generate polynomial values for fitting window
@@ -243,33 +266,46 @@ class DOASWorker:
         self.min_idx = np.argmin(self.mse_vals)
         self.column_amount = self.vals_ca[self.min_idx]
 
-    def fltr_DOAS(self):
+    def fltr_doas(self):
         """Performs main retrieval in digital filtering DOAS retrieval"""
-        self.abs_spec = np.log(np.divide(self.clear_spec_corr, self.plume_spec_corr))  # Calculate absorbance
-        self.abs_spec_filt = signal.lfilter(self.filt_B, self.filt_A, self.abs_spec)  # Filter absorbance spectrum
+        self.wavelengths_cut = self.wavelengths[self.fit_window]    # Extract wavelengths (used in plotting)
 
-        self.ref_spec_cut['SO2'] = self.ref_spec['SO2'][self.fit_window_ref]
-        self.abs_spec_cut = self.abs_spec[self.fit_window]
+        with np.errstate(divide='ignore'):
+            self.abs_spec = np.log(np.divide(self.clear_spec_corr, self.plume_spec_corr))   # Calculate absorbance
 
-        idx = 1
+        # Remove nans and infs (filter function doesn't work if they are included)
+        self.abs_spec[np.isinf(self.abs_spec)] = np.nan
+        self.abs_spec[np.isnan(self.abs_spec)] = 0
+
+        self.abs_spec_filt = signal.lfilter(self.filt_B, self.filt_A, self.abs_spec)    # Filter absorbance spectrum
+        self.abs_spec_cut = self.abs_spec_filt[self.fit_window]                         # Extract fit window
+
+        # Filter reference spectrum and extract fit window
+        self.ref_spec_filter['SO2'] = signal.lfilter(self.filt_B, self.filt_A, self.ref_spec_ppmm['SO2'])
+        self.ref_spec_cut['SO2'] = self.ref_spec_filter['SO2'][self.fit_window_ref]
+
+        idx = 0
         for i in self.vals_ca:
             ref_spec_fit = self.ref_spec_cut['SO2'] * i
 
-            self.mse_vals[idx] = np.mean(np.power(self.abs_spec_cut, ref_spec_fit, 2))  # Calculate MSE of fit
+            self.mse_vals[idx] = np.mean(np.power(self.abs_spec_cut - ref_spec_fit, 2))  # Calculate MSE of fit
             idx += 1
 
+        # Determine column amount from best fit
         self.min_idx = np.argmin(self.mse_vals)
         self.column_amount = self.vals_ca[self.min_idx]
 
+        # Generate scaled reference spectrum
+        self.ref_spec_fit['SO2'] = self.ref_spec_cut['SO2'] * self.column_amount
 
 
     def poly_plot_gen(self):
         """Generate arrays to be plotted -> residual, fitted spectrum"""
-        self.ref_spec_fit = self.ref_spec_cut * self.column_amount
-        self.residual = self.abs_spec_cut - self.ref_spec_fit
+        self.ref_spec_fit['SO2'] = self.ref_spec_cut['SO2'] * self.column_amount
+        self.residual = self.abs_spec_cut - self.ref_spec_fit['SO2']
         poly_fit = np.polyfit(self.fit_window, self.residual, self.poly_order)  # Fit polynomial to residual
         self.poly_vals = np.polyval(poly_fit, self.fit_window)  # Generate polynomial values for fitting window
-        self.best_fit = self.ref_spec_fit + self.poly_vals  # Generate best fit absorbance spectrum
+        self.best_fit = self.ref_spec_fit['SO2'] + self.poly_vals  # Generate best fit absorbance spectrum
 
         # MAKE PLOT
         plt.figure()
@@ -284,7 +320,7 @@ class DOASWorker:
         plt.show()
 
 
-    def process_DOAS(self):
+    def process_doas(self):
         """Handles the order of DOAS processing"""
         # Check we have all of the correct spectra to perform processing
         if self.clear_spec_raw is None or self.plume_spec_raw is None or self.wavelengths is None:
@@ -302,6 +338,16 @@ class DOASWorker:
         else:
             self.dark_corr_spectra()
 
+        # If the stray region hasn't been converted to pixel space we just set it to itself to implement pixel mapping
+        if self._start_stray_pix is None or self._end_stray_pix is None:
+            self.start_stray_wave = self.start_stray_wave
+            self.end_stray_wave = self.end_stray_wave
+
+        # Same for fit window
+        if self._start_fit_pix is None or self._end_fit_pix is None:
+            self.start_fit_wave = self.start_fit_wave
+            self.end_fit_wave = self.end_fit_wave
+
         # Correct spectra for stray light
         self.stray_corr_spectra()
 
@@ -312,7 +358,7 @@ class DOASWorker:
         self.conv_ref_spec()
 
         # Run processing
-        self.fltr_DOAS()
+        self.fltr_doas()
 
         print(self.column_amount)
 

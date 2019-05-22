@@ -388,7 +388,7 @@ class RefPlot:
     """
     Plots and allows interaction with the reference spectrum
     """
-    def __init__(self, frame, doas_worker=DOASWorker(), init_dir='C:\\', fig_size=(10,6), dpi=100):
+    def __init__(self, frame, doas_worker=DOASWorker(), init_dir='C:\\', fig_size=(10,4), dpi=100):
         self.doas_worker = doas_worker
 
         self.init_dir = init_dir
@@ -400,6 +400,7 @@ class RefPlot:
         self.pdx = 5
         self.pdy = 5
 
+        # Setup gui
         self.__setup_gui__(frame)
 
 
@@ -414,25 +415,35 @@ class RefPlot:
 
         self.loadRefFrame = tk.Frame(self.frame)
         self.loadRefFrame.grid(row=0, column=0, sticky='w')
-        self.labelRef = tk.Label(self.loadRefFrame, text='Filename:', font=self.setts.mainFontBold)
-        self.labelRef.grid(row=0, column=0, padx=self.pdx, pady=self.pdy)
+        label = tk.Label(self.loadRefFrame, text='Filename:', font=self.setts.mainFontBold)
+        label.grid(row=0, column=0, padx=self.pdx, pady=self.pdy)
         self.nameRef = tk.Label(self.loadRefFrame, text='None Selected', font=self.setts.mainFont)
         self.nameRef.grid(row=0, column=1, padx=self.pdx, pady=self.pdy)
-        self.selectRef = tk.Button(self.loadRefFrame, text='Load Spectrum', command=self.choose_ref_spec)
+        self.selectRef = ttk.Button(self.loadRefFrame, text='Load Spectrum', command=self.choose_ref_spec)
         self.selectRef.grid(row=0, column=2, padx=self.pdx, pady=self.pdy)
 
-        # Plot reference spectrum
-        self.FigRef = plt.Figure(figsize=self.fig_size, dpi=self.dpi)
-        self.AxRef = self.FigRef.add_subplot(111)
+        self.conv_button = ttk.Button(self.frame, text='Convolve with ILS', command=self.conv_ref)
+        self.conv_button.grid(row=0, column=1)
 
-        self.AxRef.set_title('Reference spectrum: None')
-        self.AxRef.set_ylabel(r'Absorption Cross Section [cm$^2$/molecule]')
-        self.AxRef.set_xlabel('Wavelength [nm]')
-        self.AxRef.tick_params(axis='both', direction='in', top='on', right='on')
+        # --------------------------------------------
+        # FIGURE SETUP
+        # --------------------------------------------
+        self.FigRef = plt.Figure(figsize=self.fig_size, dpi=self.dpi)
+        self.ax_SO2 = self.FigRef.add_subplot(111)
+
+        self.ax_SO2.set_title('Reference spectrum: None')
+        self.ax_SO2.set_ylabel(r'Absorption Cross Section [cm$^2$/molecule]')
+        self.ax_SO2.set_xlabel('Wavelength [nm]')
+        self.ax_SO2.tick_params(axis='both', direction='in', top='on', right='on')
+
+
+        for i in range(2):
+            self.ax_SO2.plot([250, 400], [0, 0], linewidth=1)
+        self.ax_SO2.legend(('Reference', 'ILS-convolved'), loc=1, framealpha=1)
 
         self.refCanvas = FigureCanvasTkAgg(self.FigRef, master=self.frame)
         self.refCanvas.draw()
-        self.refCanvas.get_tk_widget().grid(row=1, column=0)
+        self.refCanvas.get_tk_widget().grid(row=1, column=0, columnspan=2)
         # --------------------------------------------------------------------------------------------------------------
 
     def choose_ref_spec(self):
@@ -449,16 +460,33 @@ class RefPlot:
             self.nameRef.configure(text=self.ref_spec_path)
         self.doas_worker.load_ref_spec(self.ref_spec_path, 'SO2')
 
+        # Set convolution plot to zero then update
+        self.ax_SO2.lines[1].set_data([self.doas_worker.ref_spec['SO2'][0, 0], self.doas_worker.ref_spec['SO2'][-1,0]],
+                                      [0,0])
+        # Plot reference spectrum
         self.plot_ref_spec()
 
     def plot_ref_spec(self):
         """Plot up reference spectrum"""
-        if hasattr(self, 'ref_plot'):  # If we have already plotted a spectra we can just update
-            self.ref_plot.set_data(self.doas_worker.ref_spec['SO2'][:, 0], self.doas_worker.ref_spec['SO2'][:, 1])
-        else:
-            self.ref_plot, = self.AxRef.plot(self.doas_worker.ref_spec['SO2'][:, 0],
-                                             self.doas_worker.ref_spec['SO2'][:, 1])
-        self.AxRef.set_xlim([self.doas_worker.ref_spec['SO2'][0, 0], self.doas_worker.ref_spec['SO2'][-1, 0]])
-        self.AxRef.set_ylim([0, np.amax(self.doas_worker.ref_spec['SO2'][:, 1])])
-        self.AxRef.set_title('Reference Spectrum: %s' % self.ref_spec_file)
+        self.ax_SO2.lines[0].set_data(self.doas_worker.ref_spec['SO2'][:, 0], self.doas_worker.ref_spec['SO2'][:, 1])
+        self.ax_SO2.set_xlim([self.doas_worker.ref_spec['SO2'][0, 0], self.doas_worker.ref_spec['SO2'][-1, 0]])
+        self.ax_SO2.set_ylim([0, np.amax(self.doas_worker.ref_spec['SO2'][:, 1])])
+        self.ax_SO2.set_title('Reference Spectrum: %s' % self.ref_spec_file)
+        self.refCanvas.draw()
+
+    def conv_ref(self):
+        if self.doas_worker.ILS is None:
+            print('No ILS to convolved reference spectrum with')
+            return
+
+        # If reference spectrum dictionary is empty - return
+        if not self.doas_worker.ref_spec:
+            print('No reference spectrum loaded')
+            return
+
+        # Convolve reference spectrum
+        self.doas_worker.conv_ref_spec()
+
+        # Update plot
+        self.ax_SO2.lines[1].set_data(self.doas_worker.wavelengths, self.doas_worker.ref_spec_conv['SO2'])
         self.refCanvas.draw()

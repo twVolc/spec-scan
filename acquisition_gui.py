@@ -19,11 +19,13 @@ from datetime import datetime
 class AcquisitionFrame:
     """
     Frame for controlling acquisition settings and instigating acquisitions
+    This class brings together the the DOAS work to control processing and plotting of DOAS too
     """
-    def __init__(self, frame, doas_worker, spec_plot):
+    def __init__(self, frame, doas_worker, spec_plot, doas_plot):
         self.setts = SettingsGUI()      # Import settings
         self.doas_worker = doas_worker  # Setup DOASWorker object, used for processing
         self.spec_plot = spec_plot      # Setup SpectraPlot object, used for plotting spectra
+        self.doas_plot = doas_plot
 
         # PROBABLY SETUP THIS PATH THROUGH A FUNCTION WHICH CREATES A NEW DATE DIRECTORY
         # OR THIS MAY BE SETUP OUTSIDE OF THIS CLASS - BY THE MAIN CLASS
@@ -193,7 +195,11 @@ class AcquisitionFrame:
         self.spec_plot.update_plume()
 
         # Try processing data
-        self.doas_worker.process_DOAS()
+        self.doas_worker.process_doas()
+
+        # Update doas plot
+        self.doas_plot.update_plot()
+
 
 
     def acquire_scan(self):
