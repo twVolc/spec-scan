@@ -89,12 +89,10 @@ class PySpec(ttk.Frame):
         self.plot_frame = ttk.Frame(self.mainFrame)
         self.plot_frame.pack(side='right', expand=1, anchor='e')
 
-        # Spectra plots
-        self.spec_frame = SpectraPlot(self.plot_frame, self.DOAS)
-        self.spec_frame.frame.pack(side='top', expand=1, anchor='n')
-
-        # DOAS plot
+        # Spectra + DOAS plots
         self.doas_frame = DOASPlot(self.plot_frame, self.DOAS)
+        self.spec_frame = SpectraPlot(self.plot_frame, self.DOAS, self.doas_frame)
+        self.spec_frame.frame.pack(side='top', expand=1, anchor='n')
         self.doas_frame.frame.pack(side='top', expand=1, anchor='n')
 
         # Acquisition frame

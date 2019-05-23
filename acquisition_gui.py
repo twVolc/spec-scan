@@ -207,6 +207,8 @@ class AcquisitionFrame:
         self.spec_ctrl.int_time = self.int_time.get()
         # ADD CODE
 
+        # Need to update self.doas_worker.stray_corrected after each acquisition so new acquisitions will be corrected during processing
+
     def _check_connection(self):
         """Checks spectrometer connection"""
         # If we don't already have a spectrometer set, search for it. If we can't find one, return.

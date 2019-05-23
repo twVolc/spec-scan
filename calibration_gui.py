@@ -314,7 +314,6 @@ class CalPlot:
         if self.cal_spec_corr is not None:
             self.extract_ILS()
 
-
     def load_ILS(self):
         """Loads ILS from text file"""
         # Bring up dialog to find file
@@ -382,6 +381,9 @@ class CalPlot:
 
         # Updates doas worker with ILS every time the plot is updated, so that we are in sync
         self.doas_worker.ILS = self.ILS
+
+        # As we have a new ILS, we need to let the doas_worker that it has not been convolved with the ref spectrum
+        self.doas_worker.ref_convolved = False
 
 
 class RefPlot:

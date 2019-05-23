@@ -42,9 +42,9 @@ class DOASWorker:
 
         self.wavelengths = None         # Placeholder for wavelengths attribute which contains all wavelengths of spectra
         self.wavelengths_cut = None     # Wavelengths in fit window
-        self.dark_spec = None           # Dark spectrum
-        self.clear_spec_raw = None      # Clear (fraunhofer) spectrum - not dark corrected
-        self.plume_spec_raw = None      # In-plume spectrum (main one which is used for calculation of SO2
+        self._dark_spec = None           # Dark spectrum
+        self._clear_spec_raw = None     # Clear (fraunhofer) spectrum - not dark corrected
+        self._plume_spec_raw = None     # In-plume spectrum (main one which is used for calculation of SO2
         self.clear_spec_corr = None     # Clear (fraunhofer) spectrum - typically dark corrected and stray light corrected
         self.plume_spec_corr = None     # In-plume spectrum (main one which is used for calculation of SO2
         self.ref_spec = dict()          # Create empty dictionary for holding reference spectra
@@ -56,6 +56,7 @@ class DOASWorker:
         self.ref_spec_fit = dict()      # Ref spectrum scaled by ppmm (for plotting)
         self.ref_spec_types = ['SO2', 'O3', 'ring'] # List of reference spectra types accepted/expected
         self.ILS = None                 # Instrument line shape (will be a numpy array)
+        self.processed_data = False     # Bool to define if object has processed DOAS yet - will become true once process_doas() is run
 
         self.poly_order = 2  # Order of polynomial used to fit residual
         (self.filt_B, self.filt_A) = signal.butter(10, 0.065, btype='highpass')
@@ -63,6 +64,9 @@ class DOASWorker:
         self.start_ca = -1000  # Starting column amount for iterations
         self.end_ca = 10000  # Ending column amount for iterations
         self.vals_ca = np.arange(self.start_ca, self.end_ca+1)  # Array of column amounts to be iterated over
+        self.vals_ca_cut_idxs = np.arange(0, len(self.vals_ca), 100)
+        self.vals_ca_cut = self.vals_ca[self.vals_ca_cut_idxs]
+        self.mse_vals_cut = np.zeros(len(self.vals_ca_cut))
         self.mse_vals = np.zeros(len(self.vals_ca))  # Array to hold mse values
 
         self.filetypes = dict(defaultextension='.png', filetypes=[('PNG', '*.png')])
@@ -70,6 +74,11 @@ class DOASWorker:
         # ----------------------------------------------------------------------------------
         # We need to make sure that all images are dark subtracted before final processing
         # Also make sure that we don't dark subtract more than once!
+        self.ref_convolved = False  # Bool defining if reference spe has been convolved - speeds up DOAS processing
+        self.new_spectra = True
+        self.dark_corrected = False
+        self.stray_corrected = False    # Bool defining if all necessary spectra have been stray light corrected
+
         self.have_dark = False  # Used to define if a dark image is loaded.
         self.cal_dark_corr = False  # Tells us if the calibration image has been dark subtracted
         self.clear_dark_corr = False  # Tells us if the clear image has been dark subtracted
@@ -133,11 +142,47 @@ class DOASWorker:
         if self.wavelengths is not None:
             self._end_fit_pix = np.argmin(np.absolute(self.wavelengths - value))
 
+    # --------------------------------------------
+    # Set spectra attributes so that whenever they are updated we flag that they have not been dark or stray corrected
+    # If we have a new dark spectrum too we need to assume it is to be used for correcting spectra, so all corrected
+    # spectra, both dark and stray, become invalid
+    @property
+    def dark_spec(self):
+        return self._dark_spec
 
+    @dark_spec.setter
+    def dark_spec(self, value):
+        self._dark_spec = value
+        self.dark_corrected = False
+        self.stray_corrected = False
+
+    @property
+    def clear_spec_raw(self):
+        return self._clear_spec_raw
+
+    @clear_spec_raw.setter
+    def clear_spec_raw(self, value):
+        self._clear_spec_raw = value
+        self.dark_corrected = False
+        self.stray_corrected = False
+
+    @property
+    def plume_spec_raw(self):
+        return self._plume_spec_raw
+
+    @plume_spec_raw.setter
+    def plume_spec_raw(self, value):
+        self._plume_spec_raw = value
+        self.dark_corrected = False
+        self.stray_corrected = False
+    # -------------------------------------------
 
     def load_ref_spec(self, pathname, species):
         """Load raw reference spectrum"""
         self.ref_spec[species] = np.loadtxt(pathname)
+
+        # Assume we have loaded a new spectrum, so set this to False - ILS has not been convolved yet
+        self.ref_convolved = False
 
 
     def get_ref_spectrum(self):
@@ -165,6 +210,8 @@ class DOASWorker:
             self.ref_spec_conv[f] = convolve(self.ref_spec_interp[f], self.ILS)
             self.ref_spec_ppmm[f] = self.ref_spec_conv[f] * self.ppmm_conversion
 
+        # Update bool as we have now performed this process
+        self.ref_convolved = True
 
     def load_calibration_spectrum(self, pathname):
         """Load Calibation image for spectrometer"""
@@ -189,6 +236,8 @@ class DOASWorker:
         self.plume_spec_corr = self.plume_spec_raw - self.dark_spec
         self.plume_spec_corr[self.plume_spec_corr < 0] = 0
 
+        self.dark_corrected = True
+
     def stray_corr_spectra(self):
         """Correct spectra for stray light - spectra are assumed to be dark-corrected prior to running this function"""
         # Set the range of stray pixels
@@ -200,6 +249,8 @@ class DOASWorker:
 
         self.plume_spec_corr = self.plume_spec_corr - np.mean(self.plume_spec_corr[stray_range])
         self.plume_spec_corr[self.plume_spec_corr < 0] = 0
+
+        self.stray_corrected = True
 
 
     def load_spec(self):
@@ -284,16 +335,47 @@ class DOASWorker:
         self.ref_spec_filter['SO2'] = signal.lfilter(self.filt_B, self.filt_A, self.ref_spec_ppmm['SO2'])
         self.ref_spec_cut['SO2'] = self.ref_spec_filter['SO2'][self.fit_window_ref]
 
+        # ------------------------------------------------------------------------------------------
+        # Attempting faster iterative process by not using every vals_ca value initially
         idx = 0
-        for i in self.vals_ca:
+        for i in self.vals_ca_cut:
             ref_spec_fit = self.ref_spec_cut['SO2'] * i
 
-            self.mse_vals[idx] = np.mean(np.power(self.abs_spec_cut - ref_spec_fit, 2))  # Calculate MSE of fit
+            self.mse_vals_cut[idx] = np.mean(np.power(self.abs_spec_cut - ref_spec_fit, 2))  # Calculate MSE of fit
             idx += 1
 
+        # Find best fit, then hone in on that region to iterate through at a step of 1 ppm.m
+        min_idx_1 = np.argmin(self.mse_vals_cut)
+
+        if min_idx_1 == 0:
+            vals_ca_new = self.vals_ca[:self.vals_ca_cut_idxs[min_idx_1 + 2]]
+        elif min_idx_1 == len(self.mse_vals_cut) - 1:
+            vals_ca_new = self.vals_ca[self.vals_ca_cut_idxs[min_idx_1 - 2]:]
+        else:
+            vals_ca_new = self.vals_ca[self.vals_ca_cut_idxs[min_idx_1 - 2]:self.vals_ca_cut_idxs[min_idx_1 + 2]]
+
+        mse_vals_new = np.zeros(len(vals_ca_new))
+        idx = 0
+        for i in vals_ca_new:
+            ref_spec_fit = self.ref_spec_cut['SO2'] * i
+
+            mse_vals_new[idx] = np.mean(np.power(self.abs_spec_cut - ref_spec_fit, 2))  # Calculate MSE of fit
+            idx += 1
+        min_idx_2 = np.argmin(mse_vals_new)
+        self.column_amount = vals_ca_new[min_idx_2]
+
+
+        # Standard slow iterative process
+        # idx = 0
+        # for i in self.vals_ca:
+        #     ref_spec_fit = self.ref_spec_cut['SO2'] * i
+        #
+        #     self.mse_vals[idx] = np.mean(np.power(self.abs_spec_cut - ref_spec_fit, 2))  # Calculate MSE of fit
+        #     idx += 1
+
         # Determine column amount from best fit
-        self.min_idx = np.argmin(self.mse_vals)
-        self.column_amount = self.vals_ca[self.min_idx]
+        # self.min_idx = np.argmin(self.mse_vals)
+        # self.column_amount = self.vals_ca[self.min_idx]
 
         # Generate scaled reference spectrum
         self.ref_spec_fit['SO2'] = self.ref_spec_cut['SO2'] * self.column_amount
@@ -329,15 +411,6 @@ class DOASWorker:
         if self.ref_spec_types[0] not in self.ref_spec.keys():
             raise SpectraError('No SO2 reference spectrum present for processing')
 
-        if self.dark_spec is None:
-            print('Warning! No dark spectrum present, processing without dark subtraction')
-
-            # Set raw spectra to the corrected spectra, ignoring that they have not been dark corrected
-            self.clear_spec_corr = self.clear_spec_raw
-            self.plume_spec_corr = self.plume_spec_raw
-        else:
-            self.dark_corr_spectra()
-
         # If the stray region hasn't been converted to pixel space we just set it to itself to implement pixel mapping
         if self._start_stray_pix is None or self._end_stray_pix is None:
             self.start_stray_wave = self.start_stray_wave
@@ -348,20 +421,31 @@ class DOASWorker:
             self.start_fit_wave = self.start_fit_wave
             self.end_fit_wave = self.end_fit_wave
 
+        if not self.dark_corrected:
+            if self.dark_spec is None:
+                print('Warning! No dark spectrum present, processing without dark subtraction')
+
+                # Set raw spectra to the corrected spectra, ignoring that they have not been dark corrected
+                self.clear_spec_corr = self.clear_spec_raw
+                self.plume_spec_corr = self.plume_spec_raw
+            else:
+                self.dark_corr_spectra()
+
         # Correct spectra for stray light
-        self.stray_corr_spectra()
+        if not self.stray_corrected:
+            self.stray_corr_spectra()
 
         # Set fitting windows for acquired and reference spectra
         self.set_fit_windows()
 
         # Convolve reference spectrum with the instrument lineshape
-        self.conv_ref_spec()
+        if not self.ref_convolved:
+            self.conv_ref_spec()
 
         # Run processing
         self.fltr_doas()
 
-        print(self.column_amount)
-
+        self.processed_data = True
 
 
 

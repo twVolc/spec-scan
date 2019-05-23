@@ -19,9 +19,10 @@ class SpectraPlot:
     Generates a widget containing 3 subplots of spectra -> dark, clear (Fraunhofer), in-plume
     """
 
-    def __init__(self, frame, doas_worker=DOASWorker()):
+    def __init__(self, frame, doas_worker=DOASWorker(), doas_plot=None):
         self.setts = SettingsGUI()
         self.doas_worker = doas_worker
+        self.doas_plot = doas_plot
 
         self.max_DN = 2**16 - 1  # Maximum DN for spectrometer
 
@@ -152,6 +153,10 @@ class SpectraPlot:
         self.stray_range.set_width(self.doas_worker.end_stray_wave - self.doas_worker.start_stray_wave)
         self.canv.draw()
 
+        if self.doas_worker.processed_data:
+            self.doas_worker.process_doas()
+            self.doas_plot.update_plot()
+
     def update_stray_end(self):
         """Updates stray light range on plot"""
         stray_end = self.stray_end.get()
@@ -168,6 +173,10 @@ class SpectraPlot:
         self.max_stray_line[0].set_data([self.doas_worker.end_stray_wave, self.doas_worker.end_stray_wave], [0, self.max_DN])
         self.stray_range.set_width(self.doas_worker.end_stray_wave - self.doas_worker.start_stray_wave)
         self.canv.draw()
+
+        if self.doas_worker.processed_data:
+            self.doas_worker.process_doas()
+            self.doas_plot.update_plot()
 
     def update_fit_wind_start(self):
         """updates fit window on plot"""
@@ -187,6 +196,10 @@ class SpectraPlot:
         self.fit_wind.set_width(self.doas_worker.end_fit_wave-self.doas_worker.start_fit_wave)
         self.canv.draw()
 
+        if self.doas_worker.processed_data:
+            self.doas_worker.process_doas()
+            self.doas_plot.update_plot()
+
     def update_fit_wind_end(self):
         """updates fit window on plot"""
         fit_wind_end = self.fit_wind_end.get()
@@ -203,6 +216,10 @@ class SpectraPlot:
         self.max_line[0].set_data([self.doas_worker.end_fit_wave, self.doas_worker.end_fit_wave], [0, self.max_DN])
         self.fit_wind.set_width(self.doas_worker.end_fit_wave - self.doas_worker.start_fit_wave)
         self.canv.draw()
+
+        if self.doas_worker.processed_data:
+            self.doas_worker.process_doas()
+            self.doas_plot.update_plot()
 
 
 class DOASPlot:
@@ -227,7 +244,7 @@ class DOASPlot:
 
         label = tk.Label(self.frame2, text='Shift spectrum:').pack(side=tk.LEFT)
         # label.grid(row=0, column=0)
-        self.shift = tk.DoubleVar()
+        self.shift = tk.IntVar()
         self.shift.set(self.doas_worker.shift)
         self.shift_box = tk.Spinbox(self.frame2, from_=-20, to=20, increment=1, width=3,
                                              textvariable=self.shift, command=self.update_shift)
@@ -270,9 +287,14 @@ class DOASPlot:
         """Updates DOASWorker shift value for aligning spectra"""
         self.doas_worker.shift = self.shift.get()
 
+        # If we have a processed spectrum we now must update it
+        if self.doas_worker.processed_data:
+            self.doas_worker.process_doas()
+            self.update_plot()
+
     def update_stretch(self):
         """Updates DOASWorker stretch value for aligning spectra"""
-        self.doas_worker.stretch = self.shift.get()
+        self.doas_worker.stretch = self.stretch.get()
 
     def update_plot(self):
         """Updates doas plot"""
