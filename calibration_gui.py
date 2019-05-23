@@ -19,7 +19,7 @@ class CalPlot:
     Generates plot for calibrating the spectrometer using a mercury lamp
     Instrument line shape is extracted from an emission line of the user's choice
     """
-    def __init__(self, frame, spec_ctrl, doas_worker=DOASWorker()):
+    def __init__(self, frame, spec_ctrl, doas_worker=DOASWorker(), ILS=None):
         self.spec_ctrl = spec_ctrl      # Must be instance of SpecCtrl
         self.doas_worker = doas_worker
 
@@ -34,11 +34,16 @@ class CalPlot:
         self.cal_spec_raw = None
         self.cal_spec_corr = None   # Dark corrected calibration spectrum
 
-        self.ILS_wavelengths = None
-        self.ILS = None
-        self.ILS_path = None        # Path to ILS file
-
+        # Setup widget
         self.__setup_gui__(frame)
+
+        # If ILS path is provided for pre-loading, load it
+        self.ILS_path = ILS
+        if self.ILS_path is not None:
+            self.load_ILS()
+        else:
+            self.ILS_wavelengths = None
+            self.ILS = None
 
     def __setup_gui__(self,frame):
 
@@ -137,7 +142,7 @@ class CalPlot:
 
         label1 = tk.Label(self.frame_ILS_func, text='Loaded ILS file:')
         self.ILS_load_label = tk.Label(self.frame_ILS_func, text='N/A', width=self.str_len_max)
-        self.load_ILS_button = ttk.Button(self.frame_ILS_func, text='Load ILS', command=self.load_ILS)
+        self.load_ILS_button = ttk.Button(self.frame_ILS_func, text='Load ILS', command=self.choose_ILS)
 
         label2 = tk.Label(self.frame_ILS_func, text='Saved ILS file:')
         self.ILS_save_label = tk.Label(self.frame_ILS_func, text='N/A', width=self.str_len_max)
@@ -314,13 +319,16 @@ class CalPlot:
         if self.cal_spec_corr is not None:
             self.extract_ILS()
 
-    def load_ILS(self):
-        """Loads ILS from text file"""
+    def choose_ILS(self):
+        """Bring up filedialog to select ILS, then instigates loading"""
         # Bring up dialog to find file
         self.ILS_path = filedialog.askopenfilename(initialdir=self.save_path,
                                                    title='Select ILS file',
                                                    filetypes=(("Text files", "*.txt"), ("All files", "*.*")))
+        self.load_ILS()
 
+    def load_ILS(self):
+        """Loads ILS from text file"""
         if not self.ILS_path:
             return
 
@@ -390,7 +398,7 @@ class RefPlot:
     """
     Plots and allows interaction with the reference spectrum
     """
-    def __init__(self, frame, doas_worker=DOASWorker(), init_dir='C:\\', fig_size=(10,4), dpi=100):
+    def __init__(self, frame, doas_worker=DOASWorker(), init_dir='C:\\', fig_size=(10,4), dpi=100, ref_spec_path=None):
         self.doas_worker = doas_worker
 
         self.init_dir = init_dir
@@ -405,6 +413,10 @@ class RefPlot:
         # Setup gui
         self.__setup_gui__(frame)
 
+        # If we have a pre-loaded reference spectrum plot it
+        self.ref_spec_path = ref_spec_path
+        if self.ref_spec_path is not None:
+            self.load_ref_spec()
 
     def __setup_gui__(self, frame):
         # -------------------------
@@ -453,7 +465,10 @@ class RefPlot:
         self.ref_spec_path = filedialog.askopenfilename(initialdir=self.init_dir,
                                                         title='Select reference spectrum',
                                                         filetypes=(("Text files", "*.txt"), ("All files", "*.*")))
-        self.ref_spec_file = self.ref_spec_path.split('/')[-1]
+        self.load_ref_spec()
+
+    def load_ref_spec(self):
+        """Loads reference spectrum"""
         if not self.ref_spec_path:
             return
         if len(self.ref_spec_path) > 53:
@@ -461,6 +476,8 @@ class RefPlot:
         else:
             self.nameRef.configure(text=self.ref_spec_path)
         self.doas_worker.load_ref_spec(self.ref_spec_path, 'SO2')
+
+        self.ref_spec_file = self.ref_spec_path.split('/')[-1]
 
         # Set convolution plot to zero then update
         self.ax_SO2.lines[1].set_data([self.doas_worker.ref_spec['SO2'][0, 0], self.doas_worker.ref_spec['SO2'][-1,0]],
@@ -489,6 +506,7 @@ class RefPlot:
         # Convolve reference spectrum
         self.doas_worker.conv_ref_spec()
 
-        # Update plot
-        self.ax_SO2.lines[1].set_data(self.doas_worker.wavelengths, self.doas_worker.ref_spec_conv['SO2'])
-        self.refCanvas.draw()
+        # Update plot (only if convolution was successful - it fails if wavelength data is not present - need to acquire spectrum with spectrometer first)
+        if 'SO2' in self.doas_worker.ref_spec_conv:
+            self.ax_SO2.lines[1].set_data(self.doas_worker.wavelengths, self.doas_worker.ref_spec_conv['SO2'])
+            self.refCanvas.draw()

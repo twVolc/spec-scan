@@ -47,10 +47,9 @@ class PySpec(ttk.Frame):
 
         self.DOAS = DOASWorker(1)
 
-        self.local_dir, self.ref_spec_init_dir, self.ref_fig_size, self.cal_fig_size, \
-        self.dpi, mtplt_font_size, self.imgSizeX, self.imgSizeY = config_parser()
+        self.config = config_parser()
 
-        matplotlib.rcParams.update({'font.size': mtplt_font_size})
+        matplotlib.rcParams.update({'font.size': self.config['mtplt_font_size']})
 
         self.maxDN = (2 ** 10) - 1  # Maximum digital number of images/spectra
 
@@ -96,18 +95,19 @@ class PySpec(ttk.Frame):
         self.doas_frame.frame.pack(side='top', expand=1, anchor='n')
 
         # Acquisition frame
-        self.acq_frame = AcquisitionFrame(self.mainFrame, self.DOAS, self.spec_frame, self.doas_frame)
+        self.acq_frame = AcquisitionFrame(self.mainFrame, self.DOAS, self.spec_frame, self.doas_frame,
+                                          self.config['arduino_COM'])
         self.acq_frame.frame.pack(side='left', expand=1, anchor='nw')
 
         # ==============================================================================================================
         # Calibration work - reference spectrum etc
         # ==============================================================================================================
-        self.ILS_frame = CalPlot(self.calibFrame, self.acq_frame.spec_ctrl, self.DOAS)
+        self.ILS_frame = CalPlot(self.calibFrame, self.acq_frame.spec_ctrl, self.DOAS, self.config['ILS'])
         self.ILS_frame.frame.pack(side=tk.RIGHT, fill=tk.Y, expand=1, anchor='e')
 
-        self.ref_frame = RefPlot(self.calibFrame, self.DOAS, self.ref_spec_init_dir, self.ref_fig_size, self.dpi)
+        self.ref_frame = RefPlot(self.calibFrame, self.DOAS, self.config['ref_spec_dir'], self.config['ref_fig_size'],
+                                 self.config['dpi'], self.config['ref_spec_SO2'])
         self.ref_frame.frame.pack(side=tk.LEFT)
-
 
 
     def exit_app(self):

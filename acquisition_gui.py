@@ -15,13 +15,16 @@ from plotting_gui import SpectraPlot
 from doas_routine import DOASWorker
 
 from datetime import datetime
+import serial
+
+
 
 class AcquisitionFrame:
     """
     Frame for controlling acquisition settings and instigating acquisitions
     This class brings together the the DOAS work to control processing and plotting of DOAS too
     """
-    def __init__(self, frame, doas_worker, spec_plot, doas_plot):
+    def __init__(self, frame, doas_worker, spec_plot, doas_plot, ard_com='COM3'):
         self.setts = SettingsGUI()      # Import settings
         self.doas_worker = doas_worker  # Setup DOASWorker object, used for processing
         self.spec_plot = spec_plot      # Setup SpectraPlot object, used for plotting spectra
@@ -41,6 +44,12 @@ class AcquisitionFrame:
         except SpectrometerConnectionError:
             print('Warning!!! No spectrometer detected. Please connect now.')
             self.spec_ctrl = None
+
+        # Setup arduino serial port
+        if ard_com is not None:
+            self.arduino = serial.Serial(ard_com, 9600)
+        else:
+            self.arduino = None
 
         # Instigates the setup of the GUI
         self.__setup_gui__(frame)
@@ -206,6 +215,15 @@ class AcquisitionFrame:
         """Perform scan acquisition"""
         self.spec_ctrl.int_time = self.int_time.get()
         # ADD CODE
+
+        for i in range(10):
+            self.arduino.write(b'\x00')
+            reply = self.arduino.read()
+
+        for i in range(10):
+            self.arduino.write(b'\x01')
+            reply = self.arduino.read()
+
 
         # Need to update self.doas_worker.stray_corrected after each acquisition so new acquisitions will be corrected during processing
 

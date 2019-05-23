@@ -61,8 +61,8 @@ class DOASWorker:
         self.poly_order = 2  # Order of polynomial used to fit residual
         (self.filt_B, self.filt_A) = signal.butter(10, 0.065, btype='highpass')
 
-        self.start_ca = -1000  # Starting column amount for iterations
-        self.end_ca = 10000  # Ending column amount for iterations
+        self.start_ca = -2000  # Starting column amount for iterations
+        self.end_ca = 20000  # Ending column amount for iterations
         self.vals_ca = np.arange(self.start_ca, self.end_ca+1)  # Array of column amounts to be iterated over
         self.vals_ca_cut_idxs = np.arange(0, len(self.vals_ca), 100)
         self.vals_ca_cut = self.vals_ca[self.vals_ca_cut_idxs]
@@ -83,15 +83,7 @@ class DOASWorker:
         self.cal_dark_corr = False  # Tells us if the calibration image has been dark subtracted
         self.clear_dark_corr = False  # Tells us if the clear image has been dark subtracted
         self.plume_dark_corr = False  # Tells us if the plume image has been dark subtracted
-
         # ==============================================================================================================
-
-        # # --------------------------------------------------------------------------------------------------------------
-        # # GENERATE CLEAR SPECTRUM AND LOAD DARK IMAGE
-        # (self.img_clear, self.img_size_x, self.img_size_y) = self.load_spec()  # Clear image (I0)
-        # self.img_dark = self.load_dark()  # Dark Image
-        # self.img_clear = self.img_clear - self.img_dark  # Dark subtract clear image
-        # # --------------------------------------------------------------------------------------------------------------
 
     @property
     def start_stray_wave(self):

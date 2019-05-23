@@ -154,6 +154,7 @@ class SpectraPlot:
         self.canv.draw()
 
         if self.doas_worker.processed_data:
+            self.doas_worker.stray_corrected = False
             self.doas_worker.process_doas()
             self.doas_plot.update_plot()
 
@@ -175,6 +176,7 @@ class SpectraPlot:
         self.canv.draw()
 
         if self.doas_worker.processed_data:
+            self.doas_worker.stray_corrected = False
             self.doas_worker.process_doas()
             self.doas_plot.update_plot()
 
@@ -305,7 +307,7 @@ class DOASPlot:
         # Set axis limits
         self.ax.set_xlim([self.doas_worker.wavelengths_cut[0], self.doas_worker.wavelengths_cut[-1]])
         ylims = np.amax(np.absolute(self.doas_worker.ref_spec_fit['SO2']))
-        ylims *= 1.1
+        ylims *= 1.15
         self.ax.set_ylim([-ylims, ylims])
         self.ax.set_title('Column density [ppm.m]: {}'.format(self.doas_worker.column_amount))
 
