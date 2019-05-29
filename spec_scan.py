@@ -28,11 +28,12 @@ import numpy as np
 import sys
 
 # In-house modules
-from doas_routine import DOASWorker
+from doas_routine import DOASWorker, ScanProcess
 from config_parser import config_parser
 from gui_subs import *
 from acquisition_gui import AcquisitionFrame
-from plotting_gui import SpectraPlot, DOASPlot
+from postprocess_gui import PostProcess
+from plotting_gui import SpectraPlot, DOASPlot, CDPlot
 from calibration_gui import CalPlot, RefPlot
 
 class PySpec(ttk.Frame):
@@ -46,16 +47,14 @@ class PySpec(ttk.Frame):
         self.version = '2.0, September 17 2017.'  # PyCam Version
 
         self.DOAS = DOASWorker(1)
+        self.scan_proc = ScanProcess()
 
         self.config = config_parser()
-
-        matplotlib.rcParams.update({'font.size': self.config['mtplt_font_size']})
-
-        self.maxDN = (2 ** 10) - 1  # Maximum digital number of images/spectra
 
         # ==============================================================================================================
         # GUI SETUP
         # ==============================================================================================================
+        matplotlib.rcParams.update({'font.size': self.config['mtplt_font_size']})
         self.bgColour = "#ccc"
         style = ttk.Style()
         style.configure("TFrame", background=self.bgColour)
@@ -94,10 +93,21 @@ class PySpec(ttk.Frame):
         self.spec_frame.frame.pack(side='top', expand=1, anchor='n')
         self.doas_frame.frame.pack(side='top', expand=1, anchor='n')
 
+        self.cd_plot = CDPlot(self.plot_frame, scan_proc=self.scan_proc)
+        self.cd_plot.frame.pack(side='top', fill=tk.BOTH, expand=1,anchor='nw')
+
+        # Left side of main tab GUI
+        self.left_main_frame = ttk.Frame(self.mainFrame)
+        self.left_main_frame.pack(side='left', expand=1, fill=tk.BOTH)
+
         # Acquisition frame
-        self.acq_frame = AcquisitionFrame(self.mainFrame, self.DOAS, self.spec_frame, self.doas_frame,
-                                          self.config['arduino_COM'])
-        self.acq_frame.frame.pack(side='left', expand=1, anchor='nw')
+        self.acq_frame = AcquisitionFrame(self.left_main_frame, self.DOAS, self.scan_proc,
+                                          self.spec_frame, self.doas_frame, self.cd_plot, self.config['arduino_COM'])
+        self.acq_frame.frame.pack(side='top', expand=1, anchor='nw')
+
+        self.post_process_frame = PostProcess(self.left_main_frame, self.DOAS, self.scan_proc,
+                                              self.spec_frame, self.doas_frame, self.cd_plot)
+        self.post_process_frame.frame.pack(side='top', expand=1, anchor='nw')
 
         # ==============================================================================================================
         # Calibration work - reference spectrum etc

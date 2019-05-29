@@ -9,7 +9,7 @@ import numpy as np
 import queue
 
 from gui_subs import SettingsGUI
-from doas_routine import DOASWorker
+from doas_routine import DOASWorker, ScanProcess
 
 plt.style.use('dark_background')
 
@@ -255,9 +255,9 @@ class DOASPlot:
 
         label2 = tk.Label(self.frame2, text='Stretch spectrum:').pack(side=tk.LEFT)
         # label2.grid(row=0, column=2)
-        self.stretch = tk.DoubleVar()
+        self.stretch = tk.IntVar()
         self.stretch.set(self.doas_worker.stretch)
-        self.stretch_box = tk.Spinbox(self.frame2, from_=-2, to=2, increment=0.001, width=5,
+        self.stretch_box = tk.Spinbox(self.frame2, from_=-999, to=999, increment=1, width=4,
                                            textvariable=self.stretch, command=self.update_stretch)
         # self.fit_wind_box_end.grid(row=0, column=3)
         self.stretch_box.pack(side=tk.LEFT)
@@ -298,6 +298,11 @@ class DOASPlot:
         """Updates DOASWorker stretch value for aligning spectra"""
         self.doas_worker.stretch = self.stretch.get()
 
+        # If we have a processed spectrum we now must update it
+        if self.doas_worker.processed_data:
+            self.doas_worker.process_doas()
+            self.update_plot()
+
     def update_plot(self):
         """Updates doas plot"""
         # Update plot lines with new data
@@ -306,9 +311,61 @@ class DOASPlot:
 
         # Set axis limits
         self.ax.set_xlim([self.doas_worker.wavelengths_cut[0], self.doas_worker.wavelengths_cut[-1]])
-        ylims = np.amax(np.absolute(self.doas_worker.ref_spec_fit['SO2']))
+        ylims = np.amax(np.absolute(self.doas_worker.abs_spec_cut))
         ylims *= 1.15
         self.ax.set_ylim([-ylims, ylims])
         self.ax.set_title('Column density [ppm.m]: {}'.format(self.doas_worker.column_amount))
+
+        self.canv.draw()
+
+
+class CDPlot:
+    """
+    Class to plot column densities retrieved from a scan or traverse sequence
+    """
+    def __init__(self, frame, fig_size=(5,5), dpi=100, scan_proc=ScanProcess()):
+        self.fig_size=fig_size
+        self.dpi = dpi
+
+        self.x_ax_min = 20
+
+        self.scan_proc = ScanProcess()
+
+        self.__setup_gui__(frame)
+
+    def __setup_gui__(self,frame):
+        """Controls widget setup"""
+        self.frame = ttk.Frame(frame, relief=tk.RAISED, borderwidth=5)
+
+        self.fig = plt.Figure(figsize=self.fig_size, dpi=self.dpi)
+        self.ax = self.fig.subplots(1,1)
+        self.ax.set_ylabel('Column Density [ppm.m]')
+        self.ax.set_xlabel('Scan Angle [deg]')
+        self.ax.set_ylim([0, 2000])
+        self.ax.set_xlim([0, self.x_ax_min])
+
+        self.ax.plot([0, self.x_ax_min], [0, 0], 'bo')
+
+        self.fig.tight_layout()
+
+        self.canv = FigureCanvasTkAgg(self.fig, master=self.frame)
+        self.canv.draw()
+        self.canv.get_tk_widget().pack(expand=True, anchor='ne')
+
+    def update_plot(self):
+        self.ax.lines[0].set_data(self.scan_proc.scan_angles, self.scan_proc.column_densities)
+
+        # Set x and y limits if we have more than one data point in the array
+        if len(self.scan_proc.column_densities) > 1:
+            ymax = np.amax(self.scan_proc.column_densities) * 1.15
+            ymin = np.amin(self.scan_proc.column_densities)
+            if ymin > 0:
+                ymin = 0
+            else:
+                ymin *= 1.1
+            self.ax.set_ylim([ymin, ymax])
+
+            if self.scan_proc.scan_angles[-1] > self.x_ax_min:
+                self.ax.set_xlim([0, self.scan_proc.scan_angles[-1] * 1.1])
 
         self.canv.draw()

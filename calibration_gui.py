@@ -23,7 +23,7 @@ class CalPlot:
         self.spec_ctrl = spec_ctrl      # Must be instance of SpecCtrl
         self.doas_worker = doas_worker
 
-        self.save_path = self.save_path = 'C:\\Users\\tw9616\\Documents\\PostDoc\\Scanning Spectrometer\\SpecScan\\Spectra\\Cal\\'
+        self.save_path = 'C:\\Users\\tw9616\\Documents\\PostDoc\\Scanning Spectrometer\\SpecScan\\Spectra\\Cal\\'
         self.str_len_max = 25   # Maximum string length allowed for filenames before they are abbreviated
 
         self.start_int_time = 100   # Starting integration time

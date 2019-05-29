@@ -26,11 +26,13 @@ class DOASWorker:
         # ======================================================================================================================
         self.ppmm_conversion = 2.7e15   # convert absorption cross-section in cm2/molecule to ppm.m (MAY NEED TO CHANGE THIS TO A DICTIONARY AS THE CONVERSION MAY DIFFER FOR EACH SPECIES?)
 
-        self.shift = 0              # Shift of spectrum in number of pixels
-        self.stretch = 0            # Stretch of spectrum
-        self._start_stray_pix = None  # Pixel space stray light window definitions
+        self.shift = 0                  # Shift of spectrum in number of pixels
+        self.stretch = 0                # Stretch of spectrum
+        self.stretch_adjuster = 0.0001  # Factor to scale stretch (needed if different spectrometers have different pixel resolutions otherwise the stretch applied may be in too large or too small stages)
+        self.stretch_resample = 100     # Number of points to resample the spectrum by during stretching
+        self._start_stray_pix = None    # Pixel space stray light window definitions
         self._end_stray_pix = None
-        self._start_stray_wave = 280  # Wavelength space stray light window definitions
+        self._start_stray_wave = 280    # Wavelength space stray light window definitions
         self._end_stray_wave = 290
         self._start_fit_pix = None  # Pixel space fitting window definitions
         self._end_fit_pix = None
@@ -76,8 +78,10 @@ class DOASWorker:
         # Also make sure that we don't dark subtract more than once!
         self.ref_convolved = False  # Bool defining if reference spe has been convolved - speeds up DOAS processing
         self.new_spectra = True
-        self.dark_corrected = False
-        self.stray_corrected = False    # Bool defining if all necessary spectra have been stray light corrected
+        self.dark_corrected_clear = False
+        self.dark_corrected_plume = False
+        self.stray_corrected_clear = False    # Bool defining if all necessary spectra have been stray light corrected
+        self.stray_corrected_plume = False    # Bool defining if all necessary spectra have been stray light corrected
 
         self.have_dark = False  # Used to define if a dark image is loaded.
         self.cal_dark_corr = False  # Tells us if the calibration image has been dark subtracted
@@ -145,8 +149,12 @@ class DOASWorker:
     @dark_spec.setter
     def dark_spec(self, value):
         self._dark_spec = value
-        self.dark_corrected = False
-        self.stray_corrected = False
+
+        # If we have a new dark image all dark and stray corrections become invalid
+        self.dark_corrected_clear = False
+        self.dark_corrected_plume = False
+        self.stray_corrected_clear = False
+        self.stray_corrected_plume = False
 
     @property
     def clear_spec_raw(self):
@@ -155,8 +163,8 @@ class DOASWorker:
     @clear_spec_raw.setter
     def clear_spec_raw(self, value):
         self._clear_spec_raw = value
-        self.dark_corrected = False
-        self.stray_corrected = False
+        self.dark_corrected_clear = False
+        self.stray_corrected_clear = False
 
     @property
     def plume_spec_raw(self):
@@ -165,9 +173,37 @@ class DOASWorker:
     @plume_spec_raw.setter
     def plume_spec_raw(self, value):
         self._plume_spec_raw = value
-        self.dark_corrected = False
-        self.stray_corrected = False
+        self.dark_corrected_plume = False
+        self.stray_corrected_plume = False
     # -------------------------------------------
+
+    def dark_corr_spectra(self):
+        """Subtract dark spectrum from spectra"""
+        if not self.dark_corrected_clear:
+            self.clear_spec_corr = self.clear_spec_raw - self.dark_spec
+            self.clear_spec_corr[self.clear_spec_corr < 0] = 0
+            self.dark_corrected_clear = True
+
+        if not self.dark_corrected_plume:
+            self.plume_spec_corr = self.plume_spec_raw - self.dark_spec
+            self.plume_spec_corr[self.plume_spec_corr < 0] = 0
+            self.dark_corrected_plume = True
+
+    def stray_corr_spectra(self):
+        """Correct spectra for stray light - spectra are assumed to be dark-corrected prior to running this function"""
+        # Set the range of stray pixels
+        stray_range = np.arange(self._start_stray_pix, self._end_stray_pix + 1)
+
+        # Correct clear and plume spectra (assumed to already be dark subtracted)
+        if not self.stray_corrected_clear:
+            self.clear_spec_corr = self.clear_spec_corr - np.mean(self.clear_spec_corr[stray_range])
+            self.clear_spec_corr[self.clear_spec_corr < 0] = 0
+            self.stray_corrected_clear = True
+
+        if not self.stray_corrected_plume:
+            self.plume_spec_corr = self.plume_spec_corr - np.mean(self.plume_spec_corr[stray_range])
+            self.plume_spec_corr[self.plume_spec_corr < 0] = 0
+            self.stray_corrected_plume = True
 
     def load_ref_spec(self, pathname, species):
         """Load raw reference spectrum"""
@@ -218,32 +254,43 @@ class DOASWorker:
                 return
 
         self.fit_window = np.arange(self._start_fit_pix, self._end_fit_pix)  # Fitting window (in Pixel space)
-        self.fit_window_ref = self.fit_window + self.shift
+        self.fit_window_ref = self.fit_window - self.shift
 
-    def dark_corr_spectra(self):
-        """Subtract dark spectrum from spectra"""
-        self.clear_spec_corr = self.clear_spec_raw - self.dark_spec
-        self.clear_spec_corr[self.clear_spec_corr < 0] = 0
+    def stretch_spectrum(self, ref_key):
+        """Stretch/squeeze reference spectrum to improve fit"""
+        if self.stretch == 0:
+            # If no stretch, extract reference spectrum using fit window and return
+            return self.ref_spec_filter[ref_key][self.fit_window_ref]
+        else:
+            stretch_inc = (self.stretch * self.stretch_adjuster) / self.stretch_resample  # Stretch increment for resampled spectrum
 
-        self.plume_spec_corr = self.plume_spec_raw - self.dark_spec
-        self.plume_spec_corr[self.plume_spec_corr < 0] = 0
+            if self.stretch < 0:
+                # Generate the fit window for extraction
+                # Must be larger than fit window as a squeeze requires pulling in data outside of the fit window
+                if self.fit_window_ref[-1] < (len(self.wavelengths) - 50):
+                    extract_window = np.arange(self.fit_window_ref[0], self.fit_window_ref[-1] + 50)
+                else:
+                    extract_window = np.arange(self.fit_window_ref[0], len(self.wavelengths))
+            else:
+                extract_window = self.fit_window_ref
 
-        self.dark_corrected = True
+            wavelengths = self.wavelengths[extract_window]
+            values = self.ref_spec_filter[ref_key][extract_window]
 
-    def stray_corr_spectra(self):
-        """Correct spectra for stray light - spectra are assumed to be dark-corrected prior to running this function"""
-        # Set the range of stray pixels
-        stray_range = np.arange(self._start_stray_pix, self._end_stray_pix + 1)
+            # Generate new arrays with 'stretch_resample' more data points
+            wavelengths_resampled = np.linspace(wavelengths[0], wavelengths[-1], len(wavelengths)*self.stretch_resample)
+            values_resample = np.interp(wavelengths_resampled, wavelengths, values)
 
-        # Correct clear and plume spectra (assumed to already be dark subtracted)
-        self.clear_spec_corr = self.clear_spec_corr - np.mean(self.clear_spec_corr[stray_range])
-        self.clear_spec_corr[self.clear_spec_corr < 0] = 0
+            num_pts = len(wavelengths_resampled)
+            wavelengths_stretch = np.zeros(num_pts)
 
-        self.plume_spec_corr = self.plume_spec_corr - np.mean(self.plume_spec_corr[stray_range])
-        self.plume_spec_corr[self.plume_spec_corr < 0] = 0
+            # Stretch wavelengths
+            for i in range(num_pts):
+                wavelengths_stretch[i] = wavelengths_resampled[i] + (i * stretch_inc)
 
-        self.stray_corrected = True
+            values_stretch = np.interp(self.wavelengths[self.fit_window_ref], wavelengths_stretch, values_resample)
 
+            return values_stretch
 
     def load_spec(self):
         """Load spectrum"""
@@ -313,7 +360,7 @@ class DOASWorker:
         """Performs main retrieval in digital filtering DOAS retrieval"""
         self.wavelengths_cut = self.wavelengths[self.fit_window]    # Extract wavelengths (used in plotting)
 
-        with np.errstate(divide='ignore'):
+        with np.errstate(divide='ignore', invalid='ignore'):
             self.abs_spec = np.log(np.divide(self.clear_spec_corr, self.plume_spec_corr))   # Calculate absorbance
 
         # Remove nans and infs (filter function doesn't work if they are included)
@@ -325,7 +372,9 @@ class DOASWorker:
 
         # Filter reference spectrum and extract fit window
         self.ref_spec_filter['SO2'] = signal.lfilter(self.filt_B, self.filt_A, self.ref_spec_ppmm['SO2'])
-        self.ref_spec_cut['SO2'] = self.ref_spec_filter['SO2'][self.fit_window_ref]
+        # PUT STRETCH HERE
+        self.ref_spec_cut[self.ref_spec_types[0]] = self.stretch_spectrum(self.ref_spec_types[0])
+        # self.ref_spec_cut['SO2'] = self.ref_spec_filter['SO2'][self.fit_window_ref]
 
         # ------------------------------------------------------------------------------------------
         # Attempting faster iterative process by not using every vals_ca value initially
@@ -413,7 +462,7 @@ class DOASWorker:
             self.start_fit_wave = self.start_fit_wave
             self.end_fit_wave = self.end_fit_wave
 
-        if not self.dark_corrected:
+        if not self.dark_corrected_clear or not self.dark_corrected_plume:
             if self.dark_spec is None:
                 print('Warning! No dark spectrum present, processing without dark subtraction')
 
@@ -424,7 +473,7 @@ class DOASWorker:
                 self.dark_corr_spectra()
 
         # Correct spectra for stray light
-        if not self.stray_corrected:
+        if not self.stray_corrected_clear or not self.stray_corrected_plume:
             self.stray_corr_spectra()
 
         # Set fitting windows for acquired and reference spectra
@@ -440,7 +489,6 @@ class DOASWorker:
         self.processed_data = True
 
 
-
 class SpectraError(Exception):
     """
     Error raised if correct spectra aren't present for processing
@@ -452,6 +500,22 @@ class SpectrometerCal:
     """Class to calibrate spectrometer"""
     def __init__(self):
         pass
+
+class ScanProcess:
+    """
+    Class to control processing of DOAS scan data
+    """
+    def __init__(self):
+        self.plume_distance = None  # Distance to plume
+
+        self.scan_angles = np.array([])
+        self.column_densities = np.array([])
+
+    def add_data(self, scan_angle, column_density):
+        """Adds data"""
+        self.scan_angles = np.append(self.scan_angles, scan_angle)
+        self.column_densities = np.append(self.column_densities, column_density)
+
 
 
 if __name__ == "__main__":

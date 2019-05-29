@@ -12,11 +12,12 @@ from matplotlib.figure import Figure
 from gui_subs import SettingsGUI
 from controllers import SpecCtrl, SpectrometerConnectionError
 from plotting_gui import SpectraPlot
-from doas_routine import DOASWorker
+from doas_routine import DOASWorker, ScanProcess
 
+import numpy as np
 from datetime import datetime
+import time
 import serial
-
 
 
 class AcquisitionFrame:
@@ -24,18 +25,29 @@ class AcquisitionFrame:
     Frame for controlling acquisition settings and instigating acquisitions
     This class brings together the the DOAS work to control processing and plotting of DOAS too
     """
-    def __init__(self, frame, doas_worker, spec_plot, doas_plot, ard_com='COM3'):
+    def __init__(self, frame, doas_worker=DOASWorker(), scan_proc=ScanProcess(),
+                 spec_plot=None, doas_plot=None, cd_plot=None, ard_com=None):
+        self.scan_incr = 1.8        # Stepper motors scan increment
+        self.scan_range_full = 100  # Range of motion in scanner
+        self.return_steps = int(np.ceil(self.scan_range_full / self.scan_incr))  # Max num of steps to reset motor at start
+        self.scan_fwd = b'\x00'     # Set here whether 0 or 1 steps the scanner in the forward direction
+        self.scan_back = b'\x01'    #
+        self.scan_proc = scan_proc
+
+
         self.setts = SettingsGUI()      # Import settings
         self.doas_worker = doas_worker  # Setup DOASWorker object, used for processing
         self.spec_plot = spec_plot      # Setup SpectraPlot object, used for plotting spectra
         self.doas_plot = doas_plot
+        self.cd_plot = cd_plot
 
         # PROBABLY SETUP THIS PATH THROUGH A FUNCTION WHICH CREATES A NEW DATE DIRECTORY
         # OR THIS MAY BE SETUP OUTSIDE OF THIS CLASS - BY THE MAIN CLASS
         self.save_path = 'C:\\Users\\tw9616\\Documents\\PostDoc\\Scanning Spectrometer\\SpecScan\\Spectra\\'
-        self.dark_filename = None
-        self.clear_filename = None
-        self.plume_filename = None
+        self.dark_path = None
+        self.clear_path = None
+        self.plume_path = None
+        self.doas_path = None
 
         self.start_int_time = 100       # Integration time to load program with
         self.start_scan_range = 45      # Scan angle range to load program with
@@ -47,7 +59,10 @@ class AcquisitionFrame:
 
         # Setup arduino serial port
         if ard_com is not None:
-            self.arduino = serial.Serial(ard_com, 9600)
+            try:
+                self.arduino = serial.Serial(ard_com, 9600)
+            except serial.serialutil.SerialException:
+                print('Could not open port to arduino, please check connection and restart program')
         else:
             self.arduino = None
 
@@ -128,11 +143,12 @@ class AcquisitionFrame:
 
         # Generate filename based on time, then save file as text
         time = datetime.now().strftime('%Y-%m-%dT%H%M%S')
-        self.dark_filename = '{}_dark.txt'.format(time)
-        self.doas_worker.save_dark(self.save_path + self.dark_filename)
+        dark_filename = '{}_dark.txt'.format(time)
+        self.dark_path = self.save_path + dark_filename
+        self.doas_worker.save_dark(self.dark_path)
 
         # Change GUI label for dark file
-        self.dark_file_label.configure(text=self.dark_filename)
+        self.dark_file_label.configure(text=dark_filename)
 
         # Update plot with new data
         self.spec_plot.update_dark()
@@ -154,16 +170,35 @@ class AcquisitionFrame:
 
         # Generate filename based on time, then save file as text
         time = datetime.now().strftime('%Y-%m-%dT%H%M%S')
-        self.clear_filename = '{}_clear.txt'.format(time)
-        self.doas_worker.save_clear_raw(self.save_path + self.clear_filename)
+        clear_filename = '{}_clear.txt'.format(time)
+        self.clear_path = self.save_path + clear_filename
+        self.doas_worker.save_clear_raw(self.clear_path)
 
         # Change GUI label for dark file
-        self.clear_file_label.configure(text=self.clear_filename)
+        self.clear_file_label.configure(text=clear_filename)
 
         # Update plot with new data
         self.spec_plot.update_clear()
 
+    def save_processed_spec(self):
+        """Saves processed spectrum with all useful information"""
+        time = datetime.now().strftime('%Y-%m-%dT%H%M%S')
+        doas_filename = '{}_doas.txt'.format(time)
+        self.doas_path = self.save_path + doas_filename
 
+        np.savetxt(self.doas_path, np.transpose([self.doas_worker.wavelengths_cut, self.doas_worker.ref_spec_fit['SO2'],
+                                                 self.doas_worker.abs_spec_cut]),
+                   header='Processed DOAS spectrum\n'
+                          'Dark spectrum: {}\nClear spectrum{}\nPlume spectrum{}\n'
+                          'Shift: {}\nStretch: {}\n'
+                          'Stray range [nm]: {}:{}\nFit window [nm]: {}:{}\n'
+                          'Column density [ppm.m]: {}\n'
+                          'Wavelength [nm]\tReference spectrum (fitted)\tAbsorbance spectrum'.format(
+                          self.dark_path, self.clear_path, self.plume_path,
+                          self.doas_worker.shift, self.doas_worker.stretch,
+                          self.doas_worker.start_stray_wave, self.doas_worker.end_stray_wave,
+                          self.doas_worker.start_fit_wave, self.doas_worker.end_fit_wave,
+                          self.doas_worker.column_amount))
 
     def acquisition_handler(self):
         """Controls acquisitions"""
@@ -173,17 +208,15 @@ class AcquisitionFrame:
         # Implement function determined by radiobutton decision
         acq_mode = self.acq_mode.get()
         if acq_mode == 0:
-            self.acquire_single()
+            self.plume_capture()
         elif acq_mode == 1:
             self.acquire_scan()
         else:
             raise ValueError('Acquisition mode expected 0 or 1. Got {}'.format(acq_mode))
 
-
-
-    def acquire_single(self):
+    def plume_capture(self):
         """Perform single acquisition"""
-        # Could possibly condense this work into a a function which is called by acquire_single and acquire scan, as
+        # Could possibly condense this work into a a function which is called by plume_capture and acquire scan, as
         # much of this function is used in acquire scan
 
         # Set spectrometer control object to correct integration time
@@ -192,13 +225,14 @@ class AcquisitionFrame:
         # Set doas_worker wavelength attribute to the wavelength calibration of spectrometer
         self.doas_worker.wavelengths = self.spec_ctrl.wavelengths
 
-        # Ignore first spectrum as it could have been acquired prior to
+        # Acquire spectrum (this method includes discarding the first spectrum retrieved from the spectrometer)
         self.doas_worker.plume_spec_raw = self.spec_ctrl.get_spec()
 
         # Generate filename based on time, then save file as text
         time = datetime.now().strftime('%Y-%m-%dT%H%M%S')
-        self.plume_filename = '{}_plume.txt'.format(time)
-        self.doas_worker.save_plume_raw(self.save_path + self.plume_filename)
+        plume_filename = '{}_plume.txt'.format(time)
+        self.plume_path = self.save_path + plume_filename
+        self.doas_worker.save_plume_raw(self.plume_path)
 
         # Update plot with new data
         self.spec_plot.update_plume()
@@ -209,23 +243,48 @@ class AcquisitionFrame:
         # Update doas plot
         self.doas_plot.update_plot()
 
-
+        # Save processed spectrum if data was processed
+        if self.doas_worker.processed_data:
+            self.save_processed_spec()
 
     def acquire_scan(self):
         """Perform scan acquisition"""
-        self.spec_ctrl.int_time = self.int_time.get()
-        # ADD CODE
+        num_steps = int(self.scan_range.get() / self.scan_incr)
 
-        for i in range(10):
-            self.arduino.write(b'\x00')
+        self.scan_proc.scan_angles = np.array([])
+        self.scan_proc.column_densities = np.array([])
+
+        for i in range(self.return_steps):
+            self.arduino.write(self.scan_back)
             reply = self.arduino.read()
 
-        for i in range(10):
-            self.arduino.write(b'\x01')
+        # Set clear spectrum as first spectrum acquired
+        self.clear_capture()
+
+        scan_angle = 0
+        for i in range(num_steps):
+            # Step motor
+            self.arduino.write(self.scan_fwd)
+            reply = self.arduino.read()
+            scan_angle += self.scan_incr
+
+            # Wait to make sure stepper has moved
+            time.sleep(0.5)
+
+            # Acquire spectrum - includes plot updates and processing
+            self.plume_capture()
+
+            # Update scan processing object with new data
+            self.scan_proc.add_data(scan_angle, self.doas_worker.column_amount)
+
+            # Update column densities plot
+            self.cd_plot.update_plot()
+
+        # Reset stepper motor
+        for i in range(num_steps):
+            self.arduino.write(self.scan_back)
             reply = self.arduino.read()
 
-
-        # Need to update self.doas_worker.stray_corrected after each acquisition so new acquisitions will be corrected during processing
 
     def _check_connection(self):
         """Checks spectrometer connection"""
