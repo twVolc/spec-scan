@@ -313,6 +313,8 @@ class DOASPlot:
         self.ax.set_xlim([self.doas_worker.wavelengths_cut[0], self.doas_worker.wavelengths_cut[-1]])
         ylims = np.amax(np.absolute(self.doas_worker.abs_spec_cut))
         ylims *= 1.15
+        if ylims == 0:
+            ylims = 0.05
         self.ax.set_ylim([-ylims, ylims])
         self.ax.set_title('Column density [ppm.m]: {}'.format(self.doas_worker.column_amount))
 

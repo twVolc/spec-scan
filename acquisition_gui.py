@@ -189,7 +189,7 @@ class AcquisitionFrame:
         np.savetxt(self.doas_path, np.transpose([self.doas_worker.wavelengths_cut, self.doas_worker.ref_spec_fit['SO2'],
                                                  self.doas_worker.abs_spec_cut]),
                    header='Processed DOAS spectrum\n'
-                          'Dark spectrum: {}\nClear spectrum{}\nPlume spectrum{}\n'
+                          'Dark spectrum: {}\nClear spectrum: {}\nPlume spectrum: {}\n'
                           'Shift: {}\nStretch: {}\n'
                           'Stray range [nm]: {}:{}\nFit window [nm]: {}:{}\n'
                           'Column density [ppm.m]: {}\n'
@@ -240,11 +240,9 @@ class AcquisitionFrame:
         # Try processing data
         self.doas_worker.process_doas()
 
-        # Update doas plot
-        self.doas_plot.update_plot()
-
-        # Save processed spectrum if data was processed
+        # Update plot and save processed spectrum if data was processed
         if self.doas_worker.processed_data:
+            self.doas_plot.update_plot()
             self.save_processed_spec()
 
     def acquire_scan(self):
