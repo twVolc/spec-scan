@@ -331,7 +331,7 @@ class CDPlot:
 
         self.x_ax_min = 20
 
-        self.scan_proc = ScanProcess()
+        self.scan_proc = scan_proc
 
         self.__setup_gui__(frame)
 
@@ -339,14 +339,36 @@ class CDPlot:
         """Controls widget setup"""
         self.frame = ttk.Frame(frame, relief=tk.RAISED, borderwidth=5)
 
+        # INPUT FRAME SETUP
+        self.frame_inputs = ttk.Frame(self.frame)
+        self.frame_inputs.pack(side=tk.LEFT, anchor='nw')
+
+        label_dist = ttk.Label(self.frame_inputs, text='Plume distance [m]:')
+        self.plume_dist = tk.IntVar()
+        self.plume_dist.set(1000)
+        self.plume_dist_box = ttk.Entry(self.frame_inputs, width=5, textvariable=self.plume_dist)
+
+        label_dist.grid(row=0, column=0, padx=5, pady=5, sticky='e')
+        self.plume_dist_box.grid(row=0, column=1, padx=5, pady=5)
+
+        label_speed = ttk.Label(self.frame_inputs, text='Plume speed [m/s]:')
+        self.plume_speed = tk.DoubleVar()
+        self.plume_speed.set(5.0)
+        self.plume_speed_box = ttk.Entry(self.frame_inputs, width=5, textvariable=self.plume_speed)
+
+        label_speed.grid(row=1, column=0, padx=5, pady=5, sticky='e')
+        self.plume_speed_box.grid(row=1, column=1, padx=5, pady=5)
+
+        # FIGURE SETUP
         self.fig = plt.Figure(figsize=self.fig_size, dpi=self.dpi)
         self.ax = self.fig.subplots(1,1)
         self.ax.set_ylabel('Column Density [ppm.m]')
         self.ax.set_xlabel('Scan Angle [deg]')
         self.ax.set_ylim([0, 2000])
         self.ax.set_xlim([0, self.x_ax_min])
+        self.ax.grid(True)
 
-        self.ax.plot([0, self.x_ax_min], [0, 0], 'bo')
+        self.ax.plot([0, self.x_ax_min], [0, 0], 'bo-')
 
         self.fig.tight_layout()
 

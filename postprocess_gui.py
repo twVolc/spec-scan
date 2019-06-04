@@ -10,7 +10,7 @@ from matplotlib.backends.backend_tkagg import FigureCanvasTkAgg, NavigationToolb
 from matplotlib.figure import Figure
 
 from gui_subs import SettingsGUI
-from controllers import SpecCtrl, SpectrometerConnectionError
+from controllers import SpecCtrl, SpectrometerConnectionError, ScanProperties
 from plotting_gui import SpectraPlot
 from doas_routine import DOASWorker, ScanProcess
 
@@ -29,6 +29,7 @@ class PostProcess:
         self.spec_plot = spec_plot
         self.doas_plot = doas_plot
         self.cd_plot = cd_plot
+        self.scan_cont = ScanProperties()
 
         self.str_len_max = 30
         self.pdx = 5
@@ -281,31 +282,41 @@ class PostProcess:
             i += 1
         os.mkdir(self.save_path)
 
+        # Initialise scan arrays
+        self.scan_proc.scan_angles = np.array([])
+        self.scan_proc.column_densities = np.array([])
+        scan_angle = 0
+
         # Update clear again, just in case other clear files have been loaded
         self.update_clear_combo(0)
 
-        if self.batch_proc.get():
-            # Process all automatically
-            for plume_file in self.scan_files:
-                self.plume_path = self.scan_dir + plume_file
-                self.load_plume()
-
+        batch = self.batch_proc.get()
+        if batch:
+            save = True
         else:
-            # Process sspectra individually, waiting for click to move to next
-            for plume_file in self.scan_files:
+            save = False
+
+        # Process all automatically
+        for plume_file in self.scan_files:
+            # Load plume spectrum and automatically process it
+            self.plume_path = self.scan_dir + plume_file
+            self.load_plume(save=save)
+
+            if not batch:
                 var = tk.IntVar()
                 self.process_butt.configure(text='NEXT SPECTRUM', command=lambda: var.set(1))
-
-                # Load plume spectrum but don't save the results yet
-                self.plume_path = self.scan_dir + plume_file
-                self.load_plume(save=False)
-
-                # Wait for button press to say to continue
                 self.process_butt.wait_variable(var)
 
+            # Update CD scan plot
+            scan_angle += self.scan_cont.scan_incr
+            self.scan_proc.add_data(scan_angle, self.doas_worker.column_amount)
+            self.cd_plot.update_plot()
+
+            if not batch:
                 # Save processed spectrum
                 self.save_processed_spec(plume_file)
 
+        if not batch:
             self.process_butt.configure(text='Process', command=self.process_doas)
 
     def save_processed_spec(self, filename):

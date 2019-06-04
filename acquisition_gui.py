@@ -10,7 +10,7 @@ from matplotlib.backends.backend_tkagg import FigureCanvasTkAgg, NavigationToolb
 from matplotlib.figure import Figure
 
 from gui_subs import SettingsGUI
-from controllers import SpecCtrl, SpectrometerConnectionError
+from controllers import SpecCtrl, SpectrometerConnectionError, ScanProperties
 from plotting_gui import SpectraPlot
 from doas_routine import DOASWorker, ScanProcess
 
@@ -27,13 +27,8 @@ class AcquisitionFrame:
     """
     def __init__(self, frame, doas_worker=DOASWorker(), scan_proc=ScanProcess(),
                  spec_plot=None, doas_plot=None, cd_plot=None, ard_com=None):
-        self.scan_incr = 1.8        # Stepper motors scan increment
-        self.scan_range_full = 100  # Range of motion in scanner
-        self.return_steps = int(np.ceil(self.scan_range_full / self.scan_incr))  # Max num of steps to reset motor at start
-        self.scan_fwd = b'\x00'     # Set here whether 0 or 1 steps the scanner in the forward direction
-        self.scan_back = b'\x01'    #
+        self.scan_cont = ScanProperties()
         self.scan_proc = scan_proc
-
 
         self.setts = SettingsGUI()      # Import settings
         self.doas_worker = doas_worker  # Setup DOASWorker object, used for processing
@@ -247,13 +242,13 @@ class AcquisitionFrame:
 
     def acquire_scan(self):
         """Perform scan acquisition"""
-        num_steps = int(self.scan_range.get() / self.scan_incr)
+        num_steps = int(self.scan_range.get() / self.scan_cont.scan_incr)
 
         self.scan_proc.scan_angles = np.array([])
         self.scan_proc.column_densities = np.array([])
 
-        for i in range(self.return_steps):
-            self.arduino.write(self.scan_back)
+        for i in range(self.scan_cont.return_steps):
+            self.arduino.write(self.scan_cont.scan_back)
             reply = self.arduino.read()
 
         # Set clear spectrum as first spectrum acquired
@@ -262,9 +257,9 @@ class AcquisitionFrame:
         scan_angle = 0
         for i in range(num_steps):
             # Step motor
-            self.arduino.write(self.scan_fwd)
+            self.arduino.write(self.scan_cont.scan_fwd)
             reply = self.arduino.read()
-            scan_angle += self.scan_incr
+            scan_angle += self.scan_cont.scan_incr
 
             # Wait to make sure stepper has moved
             time.sleep(0.5)
@@ -280,7 +275,7 @@ class AcquisitionFrame:
 
         # Reset stepper motor
         for i in range(num_steps):
-            self.arduino.write(self.scan_back)
+            self.arduino.write(self.scan_cont.scan_back)
             reply = self.arduino.read()
 
 

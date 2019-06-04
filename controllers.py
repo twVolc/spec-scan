@@ -1,5 +1,6 @@
 # IMPORTING SEABREEZE WITH PYUSB BACKEND FOR SPECTROMETER CONTROL
 import seabreeze.spectrometers as sb
+import numpy as np
 
 
 class SpecCtrl:
@@ -76,13 +77,18 @@ class SpectrometerConnectionError(Exception):
     pass
 
 
-class AcqController:
+class ScanProperties:
     """
     Handles overall control of spectral acquisition, including motor movement
     PROBABLY LEAVE THIS TO <AcquisitionFrame>
     """
     def __init__(self):
-        self.scan_deg = None    # Degrees of scan
+        self.scan_incr = 1.8  # Stepper motors scan increment
+        self.scan_range_full = 100  # Range of motion in scanner
+        self.return_steps = int(
+            np.ceil(self.scan_range_full / self.scan_incr))  # Max num of steps to reset motor at start
+        self.scan_fwd = b'\x00'  # Set here whether 0 or 1 steps the scanner in the forward direction
+        self.scan_back = b'\x01'
 
 
 

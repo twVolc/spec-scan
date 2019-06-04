@@ -506,6 +506,8 @@ class ScanProcess:
     Class to control processing of DOAS scan data
     """
     def __init__(self):
+
+
         self.plume_distance = None  # Distance to plume
 
         self.scan_angles = np.array([])
