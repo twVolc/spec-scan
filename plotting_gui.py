@@ -10,6 +10,7 @@ import queue
 
 from gui_subs import SettingsGUI
 from doas_routine import DOASWorker, ScanProcess
+from acquisition_gui import AcquisitionFrame
 
 plt.style.use('dark_background')
 
@@ -19,7 +20,8 @@ class SpectraPlot:
     Generates a widget containing 3 subplots of spectra -> dark, clear (Fraunhofer), in-plume
     """
 
-    def __init__(self, frame, doas_worker=DOASWorker(), doas_plot=None):
+    def __init__(self, root, frame, doas_worker=DOASWorker(), doas_plot=None):
+        self.root = root
         self.setts = SettingsGUI()
         self.doas_worker = doas_worker
         self.doas_plot = doas_plot
@@ -117,23 +119,25 @@ class SpectraPlot:
         self.canv.draw()
         self.canv.get_tk_widget().pack(side=tk.TOP, fill=tk.BOTH, expand=True)
 
+        self.__draw_canv__()
+
     def update_dark(self):
         """Update dark plot with new data"""
         self.ax.lines[0].set_data(self.doas_worker.wavelengths, self.doas_worker.dark_spec)
         self.ax.set_xlim([self.doas_worker.wavelengths[0],self.doas_worker.wavelengths[-1]])
-        self.canv.draw()
+        # self.canv.draw()
 
     def update_clear(self):
         """Update clear plot with new data"""
         self.ax.lines[1].set_data(self.doas_worker.wavelengths, self.doas_worker.clear_spec_raw)
         self.ax.set_xlim([self.doas_worker.wavelengths[0], self.doas_worker.wavelengths[-1]])
-        self.canv.draw()
+        # self.canv.draw()
 
     def update_plume(self):
         """Update clear plot with new data"""
         self.ax.lines[2].set_data(self.doas_worker.wavelengths, self.doas_worker.plume_spec_raw)
         self.ax.set_xlim([self.doas_worker.wavelengths[0], self.doas_worker.wavelengths[-1]])
-        self.canv.draw()
+        # self.canv.draw()
 
     def update_stray_start(self):
         """Updates stray light range on plot"""
@@ -151,7 +155,7 @@ class SpectraPlot:
         self.min_stray_line[0].set_data([self.doas_worker.start_stray_wave, self.doas_worker.start_stray_wave], [0, self.max_DN])
         self.stray_range.set_x(self.doas_worker.start_stray_wave)
         self.stray_range.set_width(self.doas_worker.end_stray_wave - self.doas_worker.start_stray_wave)
-        self.canv.draw()
+        # self.canv.draw()
 
         if self.doas_worker.processed_data:
             self.doas_worker.stray_corrected = False
@@ -173,7 +177,7 @@ class SpectraPlot:
         # Update plot
         self.max_stray_line[0].set_data([self.doas_worker.end_stray_wave, self.doas_worker.end_stray_wave], [0, self.max_DN])
         self.stray_range.set_width(self.doas_worker.end_stray_wave - self.doas_worker.start_stray_wave)
-        self.canv.draw()
+        # self.canv.draw()
 
         if self.doas_worker.processed_data:
             self.doas_worker.stray_corrected = False
@@ -196,7 +200,7 @@ class SpectraPlot:
         self.min_line[0].set_data([self.doas_worker.start_fit_wave, self.doas_worker.start_fit_wave], [0, self.max_DN])
         self.fit_wind.set_x(self.doas_worker.start_fit_wave)
         self.fit_wind.set_width(self.doas_worker.end_fit_wave-self.doas_worker.start_fit_wave)
-        self.canv.draw()
+        # self.canv.draw()
 
         if self.doas_worker.processed_data:
             self.doas_worker.process_doas()
@@ -217,20 +221,28 @@ class SpectraPlot:
         # Update plot
         self.max_line[0].set_data([self.doas_worker.end_fit_wave, self.doas_worker.end_fit_wave], [0, self.max_DN])
         self.fit_wind.set_width(self.doas_worker.end_fit_wave - self.doas_worker.start_fit_wave)
-        self.canv.draw()
+        # self.canv.draw()
 
         if self.doas_worker.processed_data:
             self.doas_worker.process_doas()
             self.doas_plot.update_plot()
 
+    def __draw_canv__(self):
+        """Draws canvas periodically"""
+        self.canv.draw()
+        self.root.after(200, self.__draw_canv__)
 
 class DOASPlot:
     """
     Generates a widget containing the DOAS fit plot
     """
-    def __init__(self, frame, doas_worker=DOASWorker()):
+    def __init__(self, root, frame, doas_worker=DOASWorker()):
+        self.root = root
+
         self.setts = SettingsGUI()
         self.doas_worker = doas_worker
+
+        self.acq_obj = None
 
         self.__setup_gui__(frame)
 
@@ -262,6 +274,10 @@ class DOASPlot:
         # self.fit_wind_box_end.grid(row=0, column=3)
         self.stretch_box.pack(side=tk.LEFT)
 
+        # Save button
+        self.save_butt = ttk.Button(self.frame2, text='Save spectra', command=self.save_spectra)
+        self.save_butt.pack(side=tk.RIGHT, anchor='e')
+
         # ------------------------------------------------
         # FIGURE SETUP
         # ------------------------------------------------
@@ -281,7 +297,7 @@ class DOASPlot:
         self.fig.tight_layout()
 
         self.canv = FigureCanvasTkAgg(self.fig, master=self.frame)
-        self.canv.draw()
+        self.__draw_canv__()
         self.canv.get_tk_widget().pack(side=tk.TOP, fill=tk.BOTH, expand=True)
 
 
@@ -318,14 +334,26 @@ class DOASPlot:
         self.ax.set_ylim([-ylims, ylims])
         self.ax.set_title('Column density [ppm.m]: {}'.format(self.doas_worker.column_amount))
 
+    def __draw_canv__(self):
+        """Draws canvas periodically"""
         self.canv.draw()
+        self.root.after(200, self.__draw_canv__)
+
+    def save_spectra(self):
+        """Saves processed DOAS spectra"""
+        if isinstance(self.acq_obj, AcquisitionFrame):
+            print('Saving...')
+            self.acq_obj.save_processed_spec()
+
 
 
 class CDPlot:
     """
     Class to plot column densities retrieved from a scan or traverse sequence
     """
-    def __init__(self, frame, fig_size=(5,5), dpi=100, scan_proc=ScanProcess()):
+    def __init__(self, root, frame, fig_size=(5,5), dpi=100, scan_proc=ScanProcess()):
+        self.root = root
+
         self.fig_size=fig_size
         self.dpi = dpi
 
@@ -359,6 +387,11 @@ class CDPlot:
         label_speed.grid(row=1, column=0, padx=5, pady=5, sticky='e')
         self.plume_speed_box.grid(row=1, column=1, padx=5, pady=5)
 
+        label = ttk.Label(self.frame_inputs, text='Scan emission rate [kg/s]:').grid(
+            row=2, column=0, padx=5, pady=5, sticky='e')
+        self.emission_rate = ttk.Label(self.frame_inputs, text='N/A')
+        self.emission_rate.grid(row=2, column=1, padx=5, pady=5)
+
         # FIGURE SETUP
         self.fig = plt.Figure(figsize=self.fig_size, dpi=self.dpi)
         self.ax = self.fig.subplots(1,1)
@@ -373,7 +406,7 @@ class CDPlot:
         self.fig.tight_layout()
 
         self.canv = FigureCanvasTkAgg(self.fig, master=self.frame)
-        self.canv.draw()
+        self.__draw_canv__()
         self.canv.get_tk_widget().pack(expand=True, anchor='ne')
 
     def update_plot(self):
@@ -387,9 +420,18 @@ class CDPlot:
                 ymin = 0
             else:
                 ymin *= 1.1
+            if ymax == 0:
+                ymax == 2000
             self.ax.set_ylim([ymin, ymax])
 
             if self.scan_proc.scan_angles[-1] > self.x_ax_min:
                 self.ax.set_xlim([0, self.scan_proc.scan_angles[-1] * 1.1])
 
+    def update_emission_rate(self):
+        """Updates emisison rate label"""
+        self.emission_rate.configure(text='{:.2f}'.format(self.scan_proc.SO2_flux))
+
+    def __draw_canv__(self):
+        """Draws canvas periodically"""
         self.canv.draw()
+        self.root.after(200, self.__draw_canv__)

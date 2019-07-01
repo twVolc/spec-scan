@@ -88,13 +88,13 @@ class PySpec(ttk.Frame):
         self.plot_frame.pack(side='right', expand=1, anchor='e')
 
         # Spectra + DOAS plots
-        self.doas_frame = DOASPlot(self.plot_frame, self.DOAS)
-        self.spec_frame = SpectraPlot(self.plot_frame, self.DOAS, self.doas_frame)
+        self.doas_frame = DOASPlot(self.parent, self.plot_frame, self.DOAS)
+        self.spec_frame = SpectraPlot(self.parent, self.plot_frame, self.DOAS, self.doas_frame)
         self.spec_frame.frame.pack(side='top', expand=1, anchor='n')
         self.doas_frame.frame.pack(side='top', expand=1, anchor='n')
 
-        self.cd_plot = CDPlot(self.plot_frame, scan_proc=self.scan_proc)
-        self.cd_plot.frame.pack(side='top', fill=tk.BOTH, expand=1,anchor='nw')
+        self.cd_plot = CDPlot(self.parent, self.plot_frame, scan_proc=self.scan_proc)
+        self.cd_plot.frame.pack(side='top', fill=tk.BOTH, expand=1, anchor='nw')
 
         # Left side of main tab GUI
         self.left_main_frame = ttk.Frame(self.mainFrame)
@@ -102,8 +102,10 @@ class PySpec(ttk.Frame):
 
         # Acquisition frame
         self.acq_frame = AcquisitionFrame(self.left_main_frame, self.DOAS, self.scan_proc,
-                                          self.spec_frame, self.doas_frame, self.cd_plot, self.config['arduino_COM'])
+                                          self.spec_frame, self.doas_frame, self.cd_plot, self.config['arduino_COM'],
+                                          save_path=self.config['init_dir'])
         self.acq_frame.frame.pack(side='top', expand=1, anchor='nw')
+        self.doas_frame.acq_obj = self.acq_frame
 
         self.post_process_frame = PostProcess(self.left_main_frame, self.DOAS, self.scan_proc,
                                               self.spec_frame, self.doas_frame, self.cd_plot)
@@ -117,7 +119,7 @@ class PySpec(ttk.Frame):
 
         self.ref_frame = RefPlot(self.calibFrame, self.DOAS, self.config['ref_spec_dir'], self.config['ref_fig_size'],
                                  self.config['dpi'], self.config['ref_spec_SO2'])
-        self.ref_frame.frame.pack(side=tk.LEFT)
+        self.ref_frame.frame.pack(side=tk.LEFT, anchor='n', padx=5, pady=5)
 
 
     def exit_app(self):

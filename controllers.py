@@ -90,6 +90,8 @@ class ScanProperties:
         self.scan_fwd = b'\x00'  # Set here whether 0 or 1 steps the scanner in the forward direction
         self.scan_back = b'\x01'
 
+        self.dark_steps = 50    # Number of steps to get to dark position
+
 
 
 

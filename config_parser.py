@@ -4,10 +4,10 @@ def config_parser():
     config = dict()
 
     # with open('C:\\PyCamUV\\config.txt','r') as f:
-    with open('config.txt','r') as f:
+    with open('config.txt', 'r') as f:
         for line in f:
-            if 'local_dir=' in line:
-                config['local_dir'] = line.split("'")[1]
+            if 'init_dir=' in line:
+                config['init_dir'] = line.split("'")[1]
             elif 'ref_spec_dir=' in line:
                 config['ref_spec_dir'] = line.split("'")[1]
             elif 'ref_fig_size=' in line:

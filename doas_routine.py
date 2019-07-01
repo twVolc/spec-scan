@@ -10,6 +10,7 @@ import tkinter as tk
 from tkinter import filedialog
 import matplotlib.pyplot as plt
 from astropy.convolution import convolve
+import scipy.integrate as integrate
 
 class DOASWorker:
     """Class to control DOAS processing
@@ -57,6 +58,9 @@ class DOASWorker:
         self.ref_spec_filter = dict()   # Filtered reference spectrum
         self.ref_spec_fit = dict()      # Ref spectrum scaled by ppmm (for plotting)
         self.ref_spec_types = ['SO2', 'O3', 'ring'] # List of reference spectra types accepted/expected
+        self.abs_spec = None
+        self.abs_spec_cut = None
+        self.abs_spec_filt = None
         self.ILS = None                 # Instrument line shape (will be a numpy array)
         self.processed_data = False     # Bool to define if object has processed DOAS yet - will become true once process_doas() is run
 
@@ -506,10 +510,19 @@ class ScanProcess:
     Class to control processing of DOAS scan data
     """
     def __init__(self):
+        self.plume_distance = None  # Distance to plume [m]
+        self.plume_speed = None     # Plume speed [m/s]
+        self.scan_sep = None       # Distance between two scan points in the plume [m]
 
+        self.ppm2kg = 2.663 * 1.0e-6    # Conversion factor to get ppm.m in kg/m2
 
-        self.plume_distance = None  # Distance to plume
+        self.scan_angles = np.array([])
+        self.column_densities = np.array([])
 
+        self.SO2_flux = None
+
+    def clear_data(self):
+        """Initialises new arrays"""
         self.scan_angles = np.array([])
         self.column_densities = np.array([])
 
@@ -518,6 +531,31 @@ class ScanProcess:
         self.scan_angles = np.append(self.scan_angles, scan_angle)
         self.column_densities = np.append(self.column_densities, column_density)
 
+    def __calc_scan_sep__(self):
+        """Calculates separation between 2 scan points in the plume"""
+        scan_step = np.deg2rad(self.scan_angles[1] - self.scan_angles[0])
+        self.scan_sep = 2 * np.tan(scan_step/2) * self.plume_distance
+
+    def calc_emission_rate(self):
+        """Calculates emission rate from current data"""
+        self.__calc_scan_sep__()
+
+        # Convert column densities to kg/m2
+        cd_conv = self.column_densities * self.ppm2kg
+
+        # Find total mass of SO2 across scan profile kg/m
+        SO2_mass = integrate.trapz(cd_conv, dx=self.scan_sep)
+
+        # Calculate emssion rate (flux) kg/s
+        self.SO2_flux = SO2_mass * self.plume_speed
+
+    @property
+    def flux_tons(self):
+        """Convert SO2 flux to t/day"""
+        if self.SO2_flux:
+            return (self.SO2_flux/1000) * 60 * 60 * 24
+        else:
+            return None
 
 
 if __name__ == "__main__":

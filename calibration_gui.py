@@ -51,8 +51,8 @@ class CalPlot:
 
         self.frame_cal = ttk.Frame(self.frame, relief=tk.RAISED, borderwidth=4)
         self.frame_cal.pack(side=tk.TOP)
-        self.frame_ILS = ttk.Frame(self.frame, relief=tk.RAISED, borderwidth=4)
-        self.frame_ILS.pack(side=tk.RIGHT, anchor='n')
+        self.frame_ILS = ttk.Frame(self.frame_cal, relief=tk.RAISED, borderwidth=4)
+        self.frame_ILS.pack(side=tk.BOTTOM, anchor='n')
 
         # -----------------------------------------------
         # WIDGET SETUP

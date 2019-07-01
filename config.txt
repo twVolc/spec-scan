@@ -1,10 +1,10 @@
 # CONFIGURATION FILE
 # This config file is whitespace sensitive on each configuration line, and thus format should be strictly maintained
 
-local_dir='C:\Users\tw9616\Documents\PhD\RaspberryPi\PiCamUV\Python Scripts\viewImg3_work\'  # Path to where image directory is held
+init_dir='C:\Users\tw9616\Documents\PostDoc\Scanning Spectrometer\SpecScan\Spectra\'       # Path to where spectra are saved initially
 ref_spec_dir='C:\Users\tw9616\Documents\PhD\RaspberryPi\Spectrometer\SO2 Cross-sections\'  # Path to open initial reference spectrum
 
-arduino_COM='COM3'   # Arduino serial communication port
+arduino_COM='COM4'   # Arduino serial communication port
 
 # Pre-load settings
 ref_spec_SO2='C:\Users\tw9616\Documents\PhD\RaspberryPi\Spectrometer\SO2 Cross-sections\Vandaele (2009) x-section in wavelength.txt'  # Path to SO2 reference spectrum

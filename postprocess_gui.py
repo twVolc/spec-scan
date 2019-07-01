@@ -203,8 +203,8 @@ class PostProcess:
         """Load plume spectrum"""
         # Bring up dialog to find file
         self.plume_path = filedialog.askopenfilename(initialdir=self.init_dir,
-                                                    title='Select in-plume spectrum file',
-                                                    filetypes=(("Text files", "*.txt"), ("All files", "*.*")))
+                                                     title='Select in-plume spectrum file',
+                                                     filetypes=(("Text files", "*.txt"), ("All files", "*.*")))
         if not self.plume_path:
             return
 
@@ -252,8 +252,7 @@ class PostProcess:
         all_files = os.listdir(self.scan_dir)
 
         dark_files = [f for f in all_files if 'dark.txt' in f]
-        clear_files = [f for f in all_files if 'clear.txt' in f]
-        self.scan_files = [f for f in all_files if 'plume.txt' in f]
+        self.scan_files = [f for f in all_files if 'plume.txt' in f or 'clear.txt' in f]     # Includes any clear files in the directory
 
         # For now just work with one dark spectrum
         if dark_files:
@@ -266,6 +265,10 @@ class PostProcess:
             self.clear_spec_select.current(0)
             self.update_clear_combo(0)
 
+    def __update_scan_params__(self):
+        """Updates scan paramters"""
+        self.scan_proc.plume_speed = self.cd_plot.plume_speed.get()
+        self.scan_proc.plume_distance = self.cd_plot.plume_dist.get()
 
     def process_doas(self):
         """Perform doas retrieval on loaded data"""
@@ -275,14 +278,15 @@ class PostProcess:
             return
 
         # Create directory to save processed data
-        self.save_path = self.scan_dir + 'Process_1/'
+        self.save_path = self.scan_dir + 'Processing_1/'
         i = 2
         while os.path.exists(self.save_path):
-            self.save_path = self.scan_dir + 'Process_{}/'.format(i)
+            self.save_path = self.scan_dir + 'Processing_{}/'.format(i)
             i += 1
         os.mkdir(self.save_path)
 
-        # Initialise scan arrays
+        # Initialise scan_proc paramters
+        self.__update_scan_params__()   # Gets plume speed and distance
         self.scan_proc.scan_angles = np.array([])
         self.scan_proc.column_densities = np.array([])
         scan_angle = 0
@@ -316,12 +320,18 @@ class PostProcess:
                 # Save processed spectrum
                 self.save_processed_spec(plume_file)
 
+        # Calculate emission rate
+        self.scan_proc.calc_emission_rate()
+        self.cd_plot.update_emission_rate()
+        self.save_scan()
+
         if not batch:
             self.process_butt.configure(text='Process', command=self.process_doas)
 
     def save_processed_spec(self, filename):
         """Saves processed spectrum with all useful information"""
-        filename = filename.split('.')[0].replace('plume', 'doas')
+        filename = filename.split('.')[0].replace('clear', 'doas')
+        filename = filename.split('.')[0].replace('plume', 'doas')  # Filename may contain plume or clear
         doas_filename = filename + '_1.txt'
         self.doas_path = self.save_path + doas_filename
 
@@ -346,3 +356,21 @@ class PostProcess:
                               self.doas_worker.column_amount))
         except:
             print('Permission denied! Could not save processed spectra. Please change the save directory')
+
+    def save_scan(self):
+        """Saves scan information"""
+        filename = 'Scan_data.txt'
+
+        try:
+            np.savetxt(self.save_path + filename, np.transpose([self.scan_proc.scan_angles,
+                                                                 self.scan_proc.column_densities]),
+                        header='Processed scan details\n'
+                               'Plume speed: {}\n'
+                               'Plume distance: {}\n'
+                               'Emission rate [kg/s]: {}\n'
+                               'Emission rate [t/day]: {}\n'
+                               'Scan angle [deg]\tColumn density [ppm.m]'.format(
+                            self.scan_proc.plume_speed, self.scan_proc.plume_distance,
+                            self.scan_proc.SO2_flux, self.scan_proc.flux_tons))
+        except Exception as e:
+            print(e)
