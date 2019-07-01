@@ -14,6 +14,7 @@ from acquisition_gui import AcquisitionFrame
 
 plt.style.use('dark_background')
 
+refresh_rate = 100
 
 class SpectraPlot:
     """
@@ -29,9 +30,7 @@ class SpectraPlot:
         self.max_DN = 2**16 - 1  # Maximum DN for spectrometer
 
         # Could use threads and queues to update plots, or just us simple functions which Acquisition frame calls
-        self.dark_Q = queue.Queue()
-        self.clear_Q = queue.Queue()
-        self.plume_Q = queue.Queue()
+        self.Q = queue.Queue()
 
         self.__setup_gui__(frame)
 
@@ -125,19 +124,19 @@ class SpectraPlot:
         """Update dark plot with new data"""
         self.ax.lines[0].set_data(self.doas_worker.wavelengths, self.doas_worker.dark_spec)
         self.ax.set_xlim([self.doas_worker.wavelengths[0],self.doas_worker.wavelengths[-1]])
-        # self.canv.draw()
+        self.Q.put(1)
 
     def update_clear(self):
         """Update clear plot with new data"""
         self.ax.lines[1].set_data(self.doas_worker.wavelengths, self.doas_worker.clear_spec_raw)
         self.ax.set_xlim([self.doas_worker.wavelengths[0], self.doas_worker.wavelengths[-1]])
-        # self.canv.draw()
+        self.Q.put(1)
 
     def update_plume(self):
         """Update clear plot with new data"""
         self.ax.lines[2].set_data(self.doas_worker.wavelengths, self.doas_worker.plume_spec_raw)
         self.ax.set_xlim([self.doas_worker.wavelengths[0], self.doas_worker.wavelengths[-1]])
-        # self.canv.draw()
+        self.Q.put(1)
 
     def update_stray_start(self):
         """Updates stray light range on plot"""
@@ -155,7 +154,7 @@ class SpectraPlot:
         self.min_stray_line[0].set_data([self.doas_worker.start_stray_wave, self.doas_worker.start_stray_wave], [0, self.max_DN])
         self.stray_range.set_x(self.doas_worker.start_stray_wave)
         self.stray_range.set_width(self.doas_worker.end_stray_wave - self.doas_worker.start_stray_wave)
-        # self.canv.draw()
+        self.Q.put(1)
 
         if self.doas_worker.processed_data:
             self.doas_worker.stray_corrected = False
@@ -177,7 +176,7 @@ class SpectraPlot:
         # Update plot
         self.max_stray_line[0].set_data([self.doas_worker.end_stray_wave, self.doas_worker.end_stray_wave], [0, self.max_DN])
         self.stray_range.set_width(self.doas_worker.end_stray_wave - self.doas_worker.start_stray_wave)
-        # self.canv.draw()
+        self.Q.put(1)
 
         if self.doas_worker.processed_data:
             self.doas_worker.stray_corrected = False
@@ -200,7 +199,7 @@ class SpectraPlot:
         self.min_line[0].set_data([self.doas_worker.start_fit_wave, self.doas_worker.start_fit_wave], [0, self.max_DN])
         self.fit_wind.set_x(self.doas_worker.start_fit_wave)
         self.fit_wind.set_width(self.doas_worker.end_fit_wave-self.doas_worker.start_fit_wave)
-        # self.canv.draw()
+        self.Q.put(1)
 
         if self.doas_worker.processed_data:
             self.doas_worker.process_doas()
@@ -221,7 +220,7 @@ class SpectraPlot:
         # Update plot
         self.max_line[0].set_data([self.doas_worker.end_fit_wave, self.doas_worker.end_fit_wave], [0, self.max_DN])
         self.fit_wind.set_width(self.doas_worker.end_fit_wave - self.doas_worker.start_fit_wave)
-        # self.canv.draw()
+        self.Q.put(1)
 
         if self.doas_worker.processed_data:
             self.doas_worker.process_doas()
@@ -229,8 +228,12 @@ class SpectraPlot:
 
     def __draw_canv__(self):
         """Draws canvas periodically"""
-        self.canv.draw()
-        self.root.after(200, self.__draw_canv__)
+        try:
+            update = self.Q.get(block=False)
+            self.canv.draw()
+        except queue.Empty:
+            pass
+        self.root.after(refresh_rate, self.__draw_canv__)
 
 class DOASPlot:
     """
@@ -241,6 +244,8 @@ class DOASPlot:
 
         self.setts = SettingsGUI()
         self.doas_worker = doas_worker
+
+        self.Q = queue.Queue()
 
         self.acq_obj = None
 
@@ -297,9 +302,10 @@ class DOASPlot:
         self.fig.tight_layout()
 
         self.canv = FigureCanvasTkAgg(self.fig, master=self.frame)
-        self.__draw_canv__()
+        self.canv.draw()
         self.canv.get_tk_widget().pack(side=tk.TOP, fill=tk.BOTH, expand=True)
 
+        self.__draw_canv__()
 
     def update_shift(self):
         """Updates DOASWorker shift value for aligning spectra"""
@@ -334,10 +340,17 @@ class DOASPlot:
         self.ax.set_ylim([-ylims, ylims])
         self.ax.set_title('Column density [ppm.m]: {}'.format(self.doas_worker.column_amount))
 
+        # Draw updates
+        self.Q.put(1)
+
     def __draw_canv__(self):
         """Draws canvas periodically"""
-        self.canv.draw()
-        self.root.after(200, self.__draw_canv__)
+        try:
+            update = self.Q.get(block=False)
+            self.canv.draw()
+        except queue.Empty:
+            pass
+        self.root.after(refresh_rate, self.__draw_canv__)
 
     def save_spectra(self):
         """Saves processed DOAS spectra"""
@@ -353,6 +366,8 @@ class CDPlot:
     """
     def __init__(self, root, frame, fig_size=(5,5), dpi=100, scan_proc=ScanProcess()):
         self.root = root
+
+        self.Q = queue.Queue()
 
         self.fig_size=fig_size
         self.dpi = dpi
@@ -406,8 +421,10 @@ class CDPlot:
         self.fig.tight_layout()
 
         self.canv = FigureCanvasTkAgg(self.fig, master=self.frame)
-        self.__draw_canv__()
+        self.canv.draw()
         self.canv.get_tk_widget().pack(expand=True, anchor='ne')
+
+        self.__draw_canv__()
 
     def update_plot(self):
         self.ax.lines[0].set_data(self.scan_proc.scan_angles, self.scan_proc.column_densities)
@@ -427,11 +444,17 @@ class CDPlot:
             if self.scan_proc.scan_angles[-1] > self.x_ax_min:
                 self.ax.set_xlim([0, self.scan_proc.scan_angles[-1] * 1.1])
 
+        self.Q.put(1)
+
     def update_emission_rate(self):
         """Updates emisison rate label"""
         self.emission_rate.configure(text='{:.2f}'.format(self.scan_proc.SO2_flux))
 
     def __draw_canv__(self):
         """Draws canvas periodically"""
-        self.canv.draw()
-        self.root.after(200, self.__draw_canv__)
+        try:
+            update = self.Q.get(block=False)
+            self.canv.draw()
+        except queue.Empty:
+            pass
+        self.root.after(refresh_rate, self.__draw_canv__)
