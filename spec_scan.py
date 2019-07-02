@@ -87,7 +87,7 @@ class PySpec(ttk.Frame):
 
         # Messages frame
         self.messages = MessagesGUI(self.frame_1)
-        self.messages.frame.pack(side='right', fill=tk.Y, anchor='e')
+        self.messages.frame.pack(side='right', fill=tk.Y, anchor='e', expand=False)
 
         # Plot frame
         self.plot_frame = ttk.Frame(self.frame_1)

@@ -18,7 +18,7 @@ import time
 class SettingsGUI:
     """Class to hold some settings of the GUI"""
     def __init__(self):
-        self.version = '0.1'
+        self.version = '1.0'
 
         self.bgColour = "#ccd"
         self.style = ttk.Style()
@@ -42,7 +42,8 @@ class MessagesGUI:
         self.mess_start = '>> '
 
         # Frame setup
-        self.frame = ttk.Frame(frame, relief=tk.GROOVE, borderwidth=2)
+        self.frame = tk.Frame(frame, relief=tk.GROOVE, borderwidth=2, width=250)
+        self.frame.pack_propagate(False)
         self.messTitle = tk.Label(self.frame, text='Messages:', font=self.setts.mainFont,
                                   anchor="w").pack(side="top", fill='both')
 
@@ -55,7 +56,7 @@ class MessagesGUI:
 
         self.vsb.pack(side="right", fill="y")
         self.vsb_x.pack(side="bottom", fill="x")
-        self.canvas.pack(side="left", fill="both", expand=True)
+        self.canvas.pack(side="left", fill="both", expand=False)
         self.canvas.create_window((1, 5), window=self.canv_frame, anchor="nw", tags=self.frame)
 
         self.canv_frame.bind("<Configure>", self.__onFrameConfigure__)
