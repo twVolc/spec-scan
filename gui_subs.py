@@ -24,7 +24,7 @@ class SettingsGUI:
         self.style = ttk.Style()
         self.style.configure("TFrame", background=self.bgColour)
 
-        self.font_size = 12
+        self.font_size = 10
         self.mainFont = tkFont.Font(family='Helvetica', size=self.font_size)
         self.mainFontBold = tkFont.Font(family='Helvetica', size=self.font_size, weight='bold')
 
@@ -206,3 +206,39 @@ class PlottingGUI:
     def __draw_canv__(self):
         """Draw canvas"""
         self.canv.show()
+
+
+class ScrollWindow:
+    """Class to a frame within a window which can be scrolled if it doesn't fit on the screen
+    A canvas for the window must already be created as well as a frame - the frame is the master of the canvas"""
+    def __init__(self, frame, canvas, vertical=True, horizontal=True):
+
+        self.canvas = canvas
+        self.frame = tk.Frame(self.canvas)
+
+        # If both paremeters are set to false we raise warning and return
+        if not vertical and not horizontal:
+            print('Scroll bar not used as both vertical and horizontal variables are set to False')
+            return
+
+        # Set up y direction scroll bar
+        if vertical:
+            self.scrollbar_y = tk.Scrollbar(frame, orient='vertical', command=canvas.yview)
+            canvas.configure(yscrollcommand=self.scrollbar_y.set)
+            self.scrollbar_y.pack(side='right', fill='y')
+
+        # Set up x direction scroll bar
+        if horizontal:
+            self.scrollbar_x = tk.Scrollbar(frame, orient='horizontal', command=canvas.xview)
+            canvas.configure(xscrollcommand=self.scrollbar_x.set)
+            self.scrollbar_x.pack(side='bottom', fill='x')
+
+        # Finalise setup by packing canvas
+        self.canvas.pack(fill="both", expand=True, anchor='nw')
+        self.canvas.create_window((1,5), window=self.frame, anchor='nw', tags=self.frame)
+
+        self.frame.bind('<Configure>', self.__on_frame_configure__)
+
+    def __on_frame_configure__(self, event):
+        """Controls movement of window on click event"""
+        self.canvas.configure(scrollregion=self.canvas.bbox("all"))

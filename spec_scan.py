@@ -81,10 +81,16 @@ class PySpec(ttk.Frame):
         # ==============================================================================================================
         # Messages frame
         self.messages = MessagesGUI(self.mainFrame)
-        self.messages.frame.pack(side='right', fill=tk.Y, expand=1, anchor='e')
+        self.messages.frame.pack(side='right', fill=tk.Y, anchor='e')
+
+        # Scrolling canvas setup for main frame
+        self.main_canvas = tk.Canvas(self.mainFrame, borderwidth=0, background=self.bgColour)
+        self.main_canvas_scroll = ScrollWindow(self.mainFrame, self.main_canvas)
+        self.frame_1 = ttk.Frame(self.main_canvas_scroll.frame, borderwidth=2)
+        self.frame_1.pack(expand=True, fill=tk.BOTH, anchor='nw')
 
         # Plot frame
-        self.plot_frame = ttk.Frame(self.mainFrame)
+        self.plot_frame = ttk.Frame(self.frame_1)
         self.plot_frame.pack(side='right', expand=1, anchor='e')
 
         # Spectra + DOAS plots
@@ -100,7 +106,7 @@ class PySpec(ttk.Frame):
         self.cd_plot.frame.pack(side='top', fill=tk.BOTH, expand=1, anchor='nw')
 
         # Left side of main tab GUI
-        self.left_main_frame = ttk.Frame(self.mainFrame)
+        self.left_main_frame = ttk.Frame(self.frame_1)
         self.left_main_frame.pack(side='left', expand=1, fill=tk.BOTH)
 
         # Acquisition frame
