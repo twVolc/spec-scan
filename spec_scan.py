@@ -123,10 +123,15 @@ class PySpec(ttk.Frame):
         # ==============================================================================================================
         # Calibration work - reference spectrum etc
         # ==============================================================================================================
-        self.ILS_frame = CalPlot(self.calibFrame, self.acq_frame.spec_ctrl, self.DOAS, self.config['ILS'])
+        self.cal_canvas = tk.Canvas(self.calibFrame, borderwidth=0, background=self.bgColour)
+        self.cal_canvas_scroll = ScrollWindow(self.calibFrame, self.cal_canvas)
+        self.frame_2 = ttk.Frame(self.cal_canvas_scroll.frame, borderwidth=2)
+        self.frame_2.pack(expand=True, fill=tk.BOTH, anchor='nw')
+
+        self.ILS_frame = CalPlot(self.frame_2, self.acq_frame.spec_ctrl, self.DOAS, self.config['ILS'])
         self.ILS_frame.frame.pack(side=tk.RIGHT, fill=tk.Y, expand=1, anchor='e')
 
-        self.ref_frame = RefPlot(self.calibFrame, self.DOAS, self.config['ref_spec_dir'], self.config['ref_fig_size'],
+        self.ref_frame = RefPlot(self.frame_2, self.DOAS, self.config['ref_spec_dir'], self.config['ref_fig_size'],
                                  self.config['dpi'], self.config['ref_spec_SO2'])
         self.ref_frame.frame.pack(side=tk.LEFT, anchor='n', padx=5, pady=5)
 
