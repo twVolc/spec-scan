@@ -79,15 +79,15 @@ class PySpec(ttk.Frame):
         # ==============================================================================================================
         # MAIN TAB SETUP
         # ==============================================================================================================
-        # Messages frame
-        self.messages = MessagesGUI(self.mainFrame)
-        self.messages.frame.pack(side='right', fill=tk.Y, anchor='e')
-
         # Scrolling canvas setup for main frame
         self.main_canvas = tk.Canvas(self.mainFrame, borderwidth=0, background=self.bgColour)
         self.main_canvas_scroll = ScrollWindow(self.mainFrame, self.main_canvas)
         self.frame_1 = ttk.Frame(self.main_canvas_scroll.frame, borderwidth=2)
         self.frame_1.pack(expand=True, fill=tk.BOTH, anchor='nw')
+
+        # Messages frame
+        self.messages = MessagesGUI(self.frame_1)
+        self.messages.frame.pack(side='right', fill=tk.Y, anchor='e')
 
         # Plot frame
         self.plot_frame = ttk.Frame(self.frame_1)
