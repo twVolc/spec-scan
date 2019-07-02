@@ -8,9 +8,9 @@ ref_spec_dir='C:\Users\tw9616\Documents\PhD\RaspberryPi\Spectrometer\SO2 Cross-s
 arduino_COM='COM4'   # Arduino serial communication port
 
 # Pre-load settings
-ref_spec_SO2='C:\Users\tw9616\Documents\PhD\RaspberryPi\Spectrometer\SO2 Cross-sections\Vandaele (2009) x-section in wavelength.txt'  # Path to SO2 reference spectrum
+ref_spec_SO2='.\Calibration_files\Vandaele (2009) x-section in wavelength.txt'  # Path to SO2 reference spectrum
 ref_spec_O3=''
-ILS='C:\Users\tw9616\Documents\PostDoc\Scanning Spectrometer\SpecScan\Spectra\Cal\2019-05-22T094432_ILS.txt'    # Path to ILS file
+ILS='.\Calibration_files\2019-05-22T094432_ILS.txt'    # Path to ILS file
 
 
 # Figure settings
