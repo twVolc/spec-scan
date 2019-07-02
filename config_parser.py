@@ -8,6 +8,15 @@ def config_parser():
         for line in f:
             if 'init_dir=' in line:
                 config['init_dir'] = line.split("'")[1]
+            elif 'spec_fig_size=' in line:
+                spec_fig_size = line.replace('spec_fig_size=', '').split(' ')[0].split(',')
+                config['spec_fig_size'] = (float(spec_fig_size[0]), float(spec_fig_size[1]))
+            elif 'doas_fig_size=' in line:
+                doas_fig_size = line.replace('doas_fig_size=', '').split(' ')[0].split(',')
+                config['doas_fig_size'] = (float(doas_fig_size[0]), float(doas_fig_size[1]))
+            elif 'scan_fig_size=' in line:
+                scan_fig_size = line.replace('scan_fig_size=', '').split(' ')[0].split(',')
+                config['scan_fig_size'] = (float(scan_fig_size[0]), float(scan_fig_size[1]))
             elif 'ref_spec_dir=' in line:
                 config['ref_spec_dir'] = line.split("'")[1]
             elif 'ref_fig_size=' in line:

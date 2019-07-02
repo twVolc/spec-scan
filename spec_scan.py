@@ -88,12 +88,15 @@ class PySpec(ttk.Frame):
         self.plot_frame.pack(side='right', expand=1, anchor='e')
 
         # Spectra + DOAS plots
-        self.doas_frame = DOASPlot(self.parent, self.plot_frame, self.DOAS)
-        self.spec_frame = SpectraPlot(self.parent, self.plot_frame, self.DOAS, self.doas_frame)
+        self.doas_frame = DOASPlot(self.parent, self.plot_frame, self.DOAS,
+                                   figsize=self.config['doas_fig_size'], dpi=self.config['dpi'])
+        self.spec_frame = SpectraPlot(self.parent, self.plot_frame, self.DOAS, self.doas_frame,
+                                      figsize=self.config['spec_fig_size'], dpi=self.config['dpi'])
         self.spec_frame.frame.pack(side='top', expand=1, anchor='n')
         self.doas_frame.frame.pack(side='top', expand=1, anchor='n')
 
-        self.cd_plot = CDPlot(self.parent, self.plot_frame, scan_proc=self.scan_proc)
+        self.cd_plot = CDPlot(self.parent, self.plot_frame, scan_proc=self.scan_proc,
+                              fig_size=self.config['scan_fig_size'], dpi=self.config['dpi'])
         self.cd_plot.frame.pack(side='top', fill=tk.BOTH, expand=1, anchor='nw')
 
         # Left side of main tab GUI

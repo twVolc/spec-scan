@@ -21,11 +21,14 @@ class SpectraPlot:
     Generates a widget containing 3 subplots of spectra -> dark, clear (Fraunhofer), in-plume
     """
 
-    def __init__(self, root, frame, doas_worker=DOASWorker(), doas_plot=None):
+    def __init__(self, root, frame, doas_worker=DOASWorker(), doas_plot=None, figsize=(10, 3), dpi=100):
         self.root = root
         self.setts = SettingsGUI()
         self.doas_worker = doas_worker
         self.doas_plot = doas_plot
+
+        self.figsize = figsize
+        self.dpi = dpi
 
         self.max_DN = 2**16 - 1  # Maximum DN for spectrometer
 
@@ -77,7 +80,7 @@ class SpectraPlot:
         # ------------------------------------------------
         # FIGURE SETUP
         # ------------------------------------------------
-        self.fig = plt.Figure(figsize=(10, 3), dpi=100)
+        self.fig = plt.Figure(figsize=self.figsize, dpi=self.dpi)
 
         self.ax = self.fig.subplots(1, 1)
         self.ax.set_ylabel('DN')
@@ -239,11 +242,14 @@ class DOASPlot:
     """
     Generates a widget containing the DOAS fit plot
     """
-    def __init__(self, root, frame, doas_worker=DOASWorker()):
+    def __init__(self, root, frame, doas_worker=DOASWorker(), figsize=(10, 3), dpi=100):
         self.root = root
 
         self.setts = SettingsGUI()
         self.doas_worker = doas_worker
+
+        self.figsize = figsize
+        self.dpi = dpi
 
         self.Q = queue.Queue()
 
@@ -286,7 +292,7 @@ class DOASPlot:
         # ------------------------------------------------
         # FIGURE SETUP
         # ------------------------------------------------
-        self.fig = plt.Figure(figsize=(10, 3), dpi=100)
+        self.fig = plt.Figure(figsize=self.figsize, dpi=self.dpi)
 
         self.ax = self.fig.subplots(1, 1)
         self.ax.set_ylabel('Absorbance')
@@ -357,7 +363,6 @@ class DOASPlot:
         if isinstance(self.acq_obj, AcquisitionFrame):
             print('Saving...')
             self.acq_obj.save_processed_spec()
-
 
 
 class CDPlot:

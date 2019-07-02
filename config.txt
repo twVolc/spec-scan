@@ -1,5 +1,6 @@
 # CONFIGURATION FILE
 # This config file is whitespace sensitive on each configuration line, and thus format should be strictly maintained
+# e.g. do not add new spaces after commas as this may prevent the file from being read correctly
 
 init_dir='C:\Users\tw9616\Documents\PostDoc\Scanning Spectrometer\SpecScan\Spectra\'       # Path to where spectra are saved initially
 ref_spec_dir='C:\Users\tw9616\Documents\PhD\RaspberryPi\Spectrometer\SO2 Cross-sections\'  # Path to open initial reference spectrum
@@ -14,6 +15,9 @@ ILS='C:\Users\tw9616\Documents\PostDoc\Scanning Spectrometer\SpecScan\Spectra\Ca
 
 # Figure settings
 dpi=96  # Screen dpi - can be used to adjust all figure sizes (I recommend editing this before individual figure sizes)
-font_size_figs=8  # Figure font size
-ref_fig_size=10,4  # Reference spectrum figure size
-cal_fig_size=6,6  # Calibration spectra image figure size
+font_size_figs=8    # Figure font size
+spec_fig_size=10,3  # Spectra figure size
+doas_fig_size=10,3  # DOAS retrieval figure size
+scan_fig_size=5,5   # Scan figure size
+ref_fig_size=10,4   # Reference spectrum figure size
+cal_fig_size=6,6    # Calibration spectra image figure size
