@@ -19,9 +19,14 @@ class CalPlot:
     Generates plot for calibrating the spectrometer using a mercury lamp
     Instrument line shape is extracted from an emission line of the user's choice
     """
-    def __init__(self, frame, spec_ctrl, doas_worker=DOASWorker(), ILS=None):
+    def __init__(self, frame, spec_ctrl, doas_worker=DOASWorker(),
+                 config={'ILS':None, 'ILS_fig_size': (6, 3), 'cal_fig_size': (10, 3), 'dpi': 96}):
         self.spec_ctrl = spec_ctrl      # Must be instance of SpecCtrl
         self.doas_worker = doas_worker
+
+        self.ILS_figsize = config['ILS_fig_size']
+        self.cal_figsize = config['cal_fig_size']
+        self.dpi = config['dpi']
 
         self.save_path = 'C:\\Users\\tw9616\\Documents\\PostDoc\\Scanning Spectrometer\\SpecScan\\Spectra\\Cal\\'
         self.str_len_max = 25   # Maximum string length allowed for filenames before they are abbreviated
@@ -38,7 +43,7 @@ class CalPlot:
         self.__setup_gui__(frame)
 
         # If ILS path is provided for pre-loading, load it
-        self.ILS_path = ILS
+        self.ILS_path = config['ILS']
         if self.ILS_path is not None:
             self.load_ILS()
         else:
@@ -103,7 +108,7 @@ class CalPlot:
         # ------------------------------------------------
         # FIGURE SETUP
         # ------------------------------------------------
-        self.fig = plt.Figure(figsize=(10, 3), dpi=100)
+        self.fig = plt.Figure(figsize=self.cal_figsize, dpi=self.dpi)
 
         self.ax = self.fig.subplots(1, 1)
         self.ax.set_ylabel('DN')
@@ -156,11 +161,8 @@ class CalPlot:
         self.ILS_save_label.grid(row=1, column=1, padx=5, pady=5)
         self.save_ILS_button.grid(row=1, column=2, padx=5, pady=5)
 
-
-
-
         # PLOT
-        self.fig_ILS = plt.Figure(figsize=(6, 3), dpi=100)
+        self.fig_ILS = plt.Figure(figsize=self.ILS_figsize, dpi=self.dpi)
         self.ax_ILS = self.fig_ILS.subplots(1, 1)
         self.ax_ILS.set_ylabel('Normalised intensity')
         self.ax_ILS.set_xlabel('Relative wavelength [nm]')

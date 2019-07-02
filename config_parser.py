@@ -25,6 +25,9 @@ def config_parser():
             elif 'cal_fig_size=' in line:
                 cal_fig_size = line.replace('cal_fig_size=', '').split(' ')[0].split(',')
                 config['cal_fig_size'] = (float(cal_fig_size[0]), float(cal_fig_size[1]))
+            elif 'ILS_fig_size=' in line:
+                ILS_fig_size = line.replace('ILS_fig_size=', '').split(' ')[0].split(',')
+                config['ILS_fig_size'] = (float(ILS_fig_size[0]), float(ILS_fig_size[1]))
             elif 'dpi=' in line:
                 config['dpi'] = int(line.replace('dpi=', '').split(' ')[0])
             elif 'font_size_figs=' in line:

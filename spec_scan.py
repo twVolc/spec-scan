@@ -128,7 +128,7 @@ class PySpec(ttk.Frame):
         self.frame_2 = ttk.Frame(self.cal_canvas_scroll.frame, borderwidth=2)
         self.frame_2.pack(expand=True, fill=tk.BOTH, anchor='nw')
 
-        self.ILS_frame = CalPlot(self.frame_2, self.acq_frame.spec_ctrl, self.DOAS, self.config['ILS'])
+        self.ILS_frame = CalPlot(self.frame_2, self.acq_frame.spec_ctrl, self.DOAS, config=self.config)
         self.ILS_frame.frame.pack(side=tk.RIGHT, fill=tk.Y, expand=1, anchor='e')
 
         self.ref_frame = RefPlot(self.frame_2, self.DOAS, self.config['ref_spec_dir'], self.config['ref_fig_size'],
