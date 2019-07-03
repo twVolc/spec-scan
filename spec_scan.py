@@ -98,8 +98,8 @@ class PySpec(ttk.Frame):
                                    figsize=self.config['doas_fig_size'], dpi=self.config['dpi'])
         self.spec_frame = SpectraPlot(self.parent, self.plot_frame, self.DOAS, self.doas_frame,
                                       figsize=self.config['spec_fig_size'], dpi=self.config['dpi'])
-        self.spec_frame.frame.pack(side='top', expand=1, anchor='n')
-        self.doas_frame.frame.pack(side='top', expand=1, anchor='n')
+        self.spec_frame.frame.pack(side='top', expand=1, anchor='n', fill=tk.X)
+        self.doas_frame.frame.pack(side='top', expand=1, anchor='n', fill=tk.X)
 
         self.cd_plot = CDPlot(self.parent, self.plot_frame, scan_proc=self.scan_proc,
                               fig_size=self.config['scan_fig_size'], dpi=self.config['dpi'])
@@ -113,12 +113,12 @@ class PySpec(ttk.Frame):
         self.acq_frame = AcquisitionFrame(self.left_main_frame, self.DOAS, self.scan_proc,
                                           self.spec_frame, self.doas_frame, self.cd_plot, self.config['arduino_COM'],
                                           save_path=self.config['init_dir'])
-        self.acq_frame.frame.pack(side='top', expand=1, anchor='nw')
+        self.acq_frame.frame.pack(side='top', expand=False, anchor='nw', fill=tk.X)
         self.doas_frame.acq_obj = self.acq_frame
 
         self.post_process_frame = PostProcess(self.left_main_frame, self.DOAS, self.scan_proc,
                                               self.spec_frame, self.doas_frame, self.cd_plot)
-        self.post_process_frame.frame.pack(side='top', expand=1, anchor='nw')
+        self.post_process_frame.frame.pack(side='top', expand=True, anchor='nw', fill=tk.X)
 
         # ==============================================================================================================
         # Calibration work - reference spectrum etc

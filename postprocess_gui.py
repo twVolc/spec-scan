@@ -49,7 +49,7 @@ class PostProcess:
         self.__setup_gui__(frame)
 
     def __setup_gui__(self, frame):
-        self.frame = ttk.LabelFrame(frame, text='Post-Processing', relief=tk.RAISED, borderwidth=5)
+        self.frame = tk.LabelFrame(frame, text='Post-Processing', relief=tk.RAISED, borderwidth=5)
 
         # Dark load
         label = ttk.Label(self.frame, text='Dark spectrum file:')

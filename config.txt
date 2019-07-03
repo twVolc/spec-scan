@@ -10,7 +10,7 @@ arduino_COM='COM4'   # Arduino serial communication port
 # Pre-load settings
 ref_spec_SO2='.\Calibration_files\Vandaele (2009) x-section in wavelength.txt'  # Path to SO2 reference spectrum
 ref_spec_O3=''
-ILS='.\Calibration_files\2019-05-22T094432_ILS.txt'    # Path to ILS file
+ILS='.\Calibration_files\2019-07-03_302nm_ILS.txt'    # Path to ILS file
 
 
 # Figure settings

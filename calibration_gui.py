@@ -8,6 +8,7 @@ from matplotlib.backends.backend_tkagg import FigureCanvasTkAgg
 
 from datetime import datetime
 import numpy as np
+import os
 
 from controllers import SpecCtrl, SpectrometerConnectionError
 from doas_routine import DOASWorker
@@ -20,7 +21,7 @@ class CalPlot:
     Instrument line shape is extracted from an emission line of the user's choice
     """
     def __init__(self, frame, spec_ctrl, doas_worker=DOASWorker(),
-                 config={'ILS':None, 'ILS_fig_size': (6, 3), 'cal_fig_size': (10, 3), 'dpi': 96}):
+                 config={'ILS':None, 'ILS_fig_size': (6, 3), 'cal_fig_size': (10, 3), 'dpi': 96, 'init_dir': '.\\'}):
         self.spec_ctrl = spec_ctrl      # Must be instance of SpecCtrl
         self.doas_worker = doas_worker
 
@@ -28,7 +29,11 @@ class CalPlot:
         self.cal_figsize = config['cal_fig_size']
         self.dpi = config['dpi']
 
-        self.save_path = 'C:\\Users\\tw9616\\Documents\\PostDoc\\Scanning Spectrometer\\SpecScan\\Spectra\\Cal\\'
+        # Set up save directory
+        self.save_path = config['init_dir'] + 'Cal\\'
+        if not os.path.exists(self.save_path):
+            os.mkdir(self.save_path)
+
         self.str_len_max = 25   # Maximum string length allowed for filenames before they are abbreviated
 
         self.start_int_time = 100   # Starting integration time

@@ -76,7 +76,7 @@ class AcquisitionFrame:
     def __setup_gui__(self, frame):
 
         # Setup main frame
-        self.frame = ttk.LabelFrame(frame, text='Acquisition Settings', relief=tk.RAISED, borderwidth=5)
+        self.frame = tk.LabelFrame(frame, text='Acquisition Settings', relief=tk.RAISED, borderwidth=5)
 
         row = 0 # Row will be incremented for easy griding
 
