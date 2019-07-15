@@ -7,7 +7,7 @@ class SpecCtrl:
     """
     Class to control spectrometer acquisition from USB2000+/Flame spectrometers
     """
-    def __init__(self, int_time=100):
+    def __init__(self, int_time=100, coadd=1):
         # Discover spectrometer devices
         self.devices = None     # List of detected spectrometers
         self.spec = None        # Holds spectrometer for interfacing via seabreeze
@@ -16,9 +16,15 @@ class SpecCtrl:
 
         # Set integration time (ALL IN MICROSECONDS)
         self._int_limit_lower = 1000        # Lower integration time limit
-        self._int_limit_upper = 20000000     # Upper integration time limit
+        self._int_limit_upper = 20000000    # Upper integration time limit
         self._int_time = None               # Integration time attribute
         self.int_time = int_time
+
+        self.min_coadd = 1
+        self.max_coadd = 100
+        self._coadd = None      # Controls coadding of spectra
+        self.coadd = coadd
+
 
     def find_device(self):
         """Function to search for devices"""
@@ -54,15 +60,39 @@ class SpecCtrl:
         self._int_time = int_time
         self.spec.integration_time_micros(int_time)
 
+    @property
+    def coadd(self):
+        return self._coadd
+
+    @coadd.setter
+    def coadd(self, coadd):
+        """Set coadding property"""
+        if coadd < self.min_coadd:
+            coadd = self.min_coadd
+        elif coadd > self.max_coadd:
+            coadd = self.max_coadd
+        coadd = int(coadd)
+        self._coadd = coadd
+
     def get_spec(self):
         """Acquire spectrum from spectrometer"""
         # First spectrum is discarded as it may have been partially acquired prior to the acquisition request
         # Trigger_mode is continuous
         _dummy = self.spec.intensities()
-        return self.spec.intensities()
+
+        # Set array for coadding spectra
+        coadded_spectrum = np.zeros(len(self.wavelengths))
+
+        # Loop through number of coadds
+        for i in range(self.coadd):
+            coadded_spectrum += self.spec.intensities()
+
+        # Correct for number of coadds to result in a spectrum with correct digital numbers for bit-depth of device
+        coadded_spectrum /= self.coadd
+        return coadded_spectrum
 
     def get_spec_now(self):
-        """Immediately acquire spectrum from spectrometer - does not discard first spectrum"""
+        """Immediately acquire spectrum from spectrometer - does not discard first spectrum (probably never used)"""
         return self.spec.intensities()
 
     def get_wavelengths(self):
@@ -80,7 +110,6 @@ class SpectrometerConnectionError(Exception):
 class ScanProperties:
     """
     Handles overall control of spectral acquisition, including motor movement
-    PROBABLY LEAVE THIS TO <AcquisitionFrame>
     """
     def __init__(self):
         self.scan_incr = 1.8  # Stepper motors scan increment
@@ -91,11 +120,6 @@ class ScanProperties:
         self.scan_back = b'\x01'
 
         self.dark_steps = 50    # Number of steps to get to dark position
-
-
-
-
-
 
 
 if __name__=="__main__":

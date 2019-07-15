@@ -54,9 +54,10 @@ class AcquisitionFrame:
         self.scan_q = queue.Queue()
 
         self.start_int_time = 100       # Integration time to load program with
+        self.start_coadd = 1
         self.start_scan_range = 45      # Scan angle range to load program with
         try:
-            self.spec_ctrl = SpecCtrl(int_time=self.start_int_time)  # Holds spectral control class
+            self.spec_ctrl = SpecCtrl(int_time=self.start_int_time, coadd=self.start_coadd)  # Holds spectral control class
         except SpectrometerConnectionError:
             print('Warning!!! No spectrometer detected. Please connect now.')
             self.spec_ctrl = None
@@ -97,6 +98,17 @@ class AcquisitionFrame:
         self.int_time.set(self.start_int_time)
         self.int_entry = ttk.Entry(self.frame, textvariable=self.int_time, width=5,
                                    ).grid(row=row, column=1, sticky='w', padx=self.setts.px, pady=self.setts.py)
+        row += 1
+
+        # Coadding
+        label = ttk.Label(self.frame, text='Co-adding spectra:').grid(row=row, column=0, sticky='w',
+                                                                      padx=self.setts.px, pady=self.setts.py)
+        self.coadd = tk.IntVar()
+        self.coadd.set(self.start_coadd)
+        self.coadd_box = tk.Spinbox(self.frame, from_=1, to=100, increment=1, width=3,
+                                    textvariable=self.coadd, command=self.update_coadd)
+        self.coadd_box.grid(row=row, column=1, sticky='w', padx=self.setts.px, pady=self.setts.py)
+
         row += 1
 
         # Scan options
@@ -166,6 +178,14 @@ class AcquisitionFrame:
         self.save_path_ind = self.save_path + 'Test_spectra/'
         if not os.path.exists(self.save_path_ind):
             os.mkdir(self.save_path_ind)
+
+    def update_coadd(self):
+        """Update coadding value"""
+        try:
+            self.spec_ctrl.coadd = self.coadd.get()
+        # If no spectrometer is detected we just ignore the error thrown
+        except AttributeError:
+            pass
 
     def dark_capture(self):
         """Controls dark spectrum capture"""
@@ -247,8 +267,10 @@ class AcquisitionFrame:
     def save_processed_spec(self):
         """Saves processed spectrum with all useful information"""
         if self.doas_worker.wavelengths_cut is None or self.doas_worker.abs_spec_cut is None:
+            print('No processing information, save not completed')
             return
         if self.doas_worker.ref_spec_types[0] not in self.doas_worker.ref_spec_fit:
+            print('No processing information, save not completed')
             return
 
         # Setup directory and filename
@@ -261,6 +283,8 @@ class AcquisitionFrame:
         if not os.path.exists(doas_dir):
             os.mkdir(doas_dir)
         self.doas_path = doas_dir + doas_filename
+
+        print(self.doas_path)
 
         np.savetxt(self.doas_path, np.transpose([self.doas_worker.wavelengths_cut, self.doas_worker.ref_spec_fit['SO2'],
                                                  self.doas_worker.abs_spec_cut]),
@@ -441,7 +465,7 @@ class AcquisitionFrame:
         # If we don't already have a spectrometer set, search for it. If we can't find one, return.
         if self.spec_ctrl is None:
             try:
-                self.spec_ctrl = SpecCtrl(int_time=self.start_int_time)  # Holds spectral control class
+                self.spec_ctrl = SpecCtrl(int_time=self.start_int_time, coadd=self.coadd.get())  # Holds spectral control class
             except SpectrometerConnectionError:
                 print('Warning!!! No spectrometer detected. Please connect now.')
                 return 0

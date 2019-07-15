@@ -315,7 +315,7 @@ class DOASWorker:
                    header='Dark spectrum\nWavelength [nm]\tIntensity [DN]')
 
     def save_clear_raw(self, filename):
-        """Save dark spectrum"""
+        """Save clear spectrum"""
         if self.wavelengths is None or self.clear_spec_raw is None:
             raise ValueError('One or both attributes are NoneType. Cannot save.')
         if len(self.wavelengths) != len(self.clear_spec_raw):
@@ -335,9 +335,11 @@ class DOASWorker:
                    header='Raw in-plume spectrum\n'
                           '-Not dark-corrected\nWavelength [nm]\tIntensity [DN]')
 
-
     def poly_doas(self):
-        """Performs main processing in polynomial fitting DOAS retrieval"""
+        """
+        Performs main processing in polynomial fitting DOAS retrieval
+        NOT COMPLETE, DO NOT USE!!!
+        """
         self.wavelengths_cut = self.wavelengths[self.fit_window]  # Extract wavelengths (used in plotting)
 
         with np.errstate(divide='ignore'):
