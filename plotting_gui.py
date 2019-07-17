@@ -304,7 +304,7 @@ class DOASPlot:
         for i in range(2):
             self.ax.plot([250, 400], [0, 0], self.plt_colours[i], linewidth=1)
         self.ax.legend(('Measured', 'Fitted reference'), loc=1, framealpha=1)
-        self.ax.set_title('Column density [ppm.m]: N/A')
+        self.ax.set_title('Column density [ppm.m]: N/A          MSE: N/A')
         self.fig.tight_layout()
 
         self.canv = FigureCanvasTkAgg(self.fig, master=self.frame)
@@ -344,7 +344,8 @@ class DOASPlot:
         if ylims == 0:
             ylims = 0.05
         self.ax.set_ylim([-ylims, ylims])
-        self.ax.set_title('Column density [ppm.m]: {}'.format(self.doas_worker.column_amount))
+        self.ax.set_title('Column density [ppm.m]: {}          MSE: {:.2e}'.format(
+            self.doas_worker.column_amount, self.doas_worker.mse))
 
         # Draw updates
         self.Q.put(1)
@@ -412,6 +413,11 @@ class CDPlot:
         self.emission_rate = ttk.Label(self.frame_inputs, text='N/A')
         self.emission_rate.grid(row=2, column=1, padx=5, pady=5)
 
+        label = ttk.Label(self.frame_inputs, text='Scan emission rate [t/day]:').grid(
+            row=3, column=0, padx=5, pady=5, sticky='e')
+        self.emission_rate_td = ttk.Label(self.frame_inputs, text='N/A')
+        self.emission_rate_td.grid(row=3, column=1, padx=5, pady=5)
+
         # FIGURE SETUP
         self.fig = plt.Figure(figsize=self.fig_size, dpi=self.dpi)
         self.ax = self.fig.subplots(1,1)
@@ -454,6 +460,7 @@ class CDPlot:
     def update_emission_rate(self):
         """Updates emisison rate label"""
         self.emission_rate.configure(text='{:.2f}'.format(self.scan_proc.SO2_flux))
+        self.emission_rate_td.configure(text='{:.1f}'.format(self.scan_proc.flux_tons))
 
     def __draw_canv__(self):
         """Draws canvas periodically"""

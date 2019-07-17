@@ -9,13 +9,12 @@ class SaveSpectra:
     """
     Handles all saving of spectra from spectrometer acquisitions and DOAS retrievals
     """
-    def __init__(self, doas=DOASWorker(), scan_proc=ScanProcess(), spec_ctrl=SpecCtrl()):
+    def __init__(self, doas=DOASWorker(), scan_proc=ScanProcess(), spec_ctrl=None):
         self.doas_worker = doas
-        self.spec_ctrl = spec_ctrl
         self.scan_proc = scan_proc
+        self.spec_ctrl = spec_ctrl
 
         self.scan_filename = 'Scan_data.txt'
-
 
     def save_dark(self, filename):
         """Save dark spectrum"""
@@ -24,6 +23,9 @@ class SaveSpectra:
             raise ValueError('One or both attributes are NoneType. Cannot save.')
         if len(self.doas_worker.wavelengths) != len(self.doas_worker.dark_spec):
             raise ValueError('Arrays are not the same length. Cannot save.')
+        if not isinstance(self.spec_ctrl, SpecCtrl):
+            print('Cannot save file as it requires a SpecCtrl instance to be present')
+            return
 
         # Save file
         np.savetxt(filename, np.transpose([self.doas_worker.wavelengths, self.doas_worker.dark_spec]),
@@ -39,6 +41,9 @@ class SaveSpectra:
             raise ValueError('One or both attributes are NoneType. Cannot save.')
         if len(self.doas_worker.wavelengths) != len(self.doas_worker.clear_spec_raw):
             raise ValueError('Arrays are not the same length. Cannot save.')
+        if not isinstance(self.spec_ctrl, SpecCtrl):
+            print('Cannot save file as it requires a SpecCtrl instance to be present')
+            return
 
         # Save file
         np.savetxt(filename, np.transpose([self.doas_worker.wavelengths, self.doas_worker.clear_spec_raw]),
@@ -55,6 +60,9 @@ class SaveSpectra:
             raise ValueError('One or both attributes are NoneType. Cannot save.')
         if len(self.doas_worker.wavelengths) != len(self.doas_worker.plume_spec_raw):
             raise ValueError('Arrays are not the same length. Cannot save.')
+        if not isinstance(self.spec_ctrl, SpecCtrl):
+            print('Cannot save file as it requires a SpecCtrl instance to be present')
+            return
 
         # Save file
         np.savetxt(filename, np.transpose([self.doas_worker.wavelengths, self.doas_worker.plume_spec_raw]),
@@ -68,8 +76,10 @@ class SaveSpectra:
         """Saves processed spectrum with all useful information"""
         # Sanity checks
         if self.doas_worker.wavelengths_cut is None or self.doas_worker.abs_spec_cut is None:
+            print('Wavelength or absorbance spectrum information not present, cannot save.')
             return
         if self.doas_worker.ref_spec_types[0] not in self.doas_worker.ref_spec_fit:
+            print('Reference spectrum not fitted, cannot save.')
             return
 
         # Save file
@@ -80,12 +90,13 @@ class SaveSpectra:
                           'Shift: {}\nStretch: {}\n'
                           'Stray range [nm]: {}:{}\nFit window [nm]: {}:{}\n'
                           'Column density [ppm.m]: {}\n'
+                          'MSE: {:.2e}\n'
                           'Wavelength [nm]\tReference spectrum (fitted)\tAbsorbance spectrum'.format(
                           dark_path, clear_path, plume_path,
                           self.doas_worker.shift, self.doas_worker.stretch,
                           self.doas_worker.start_stray_wave, self.doas_worker.end_stray_wave,
                           self.doas_worker.start_fit_wave, self.doas_worker.end_fit_wave,
-                          self.doas_worker.column_amount))
+                          self.doas_worker.column_amount, self.doas_worker.mse))
 
     def save_scan(self, save_dir):
         """Saves scan information"""

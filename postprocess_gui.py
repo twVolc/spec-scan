@@ -13,10 +13,12 @@ from gui_subs import SettingsGUI
 from controllers import SpecCtrl, SpectrometerConnectionError, ScanProperties
 from plotting_gui import SpectraPlot
 from doas_routine import DOASWorker, ScanProcess
+from save_spec import SaveSpectra
 
 import numpy as np
 from datetime import datetime
 import os
+import time
 
 class PostProcess:
     """
@@ -30,6 +32,7 @@ class PostProcess:
         self.doas_plot = doas_plot
         self.cd_plot = cd_plot
         self.scan_cont = ScanProperties()
+        self.save_obj = SaveSpectra(self.doas_worker, self.scan_proc, None)
 
         self.str_len_max = 30
         self.pdx = 5
@@ -233,7 +236,8 @@ class PostProcess:
         if self.doas_worker.processed_data:
             self.doas_plot.update_plot()
             if save:
-                self.save_processed_spec(self.plume_path.rsplit('/')[-1])
+                self.set_doas_filename(self.plume_path.rsplit('/')[-1])
+                self.save_obj.save_processed_spec(self.dark_path, self.clear_path, self.plume_path, self.doas_path)
 
 
     def load_scan(self):
@@ -302,11 +306,12 @@ class PostProcess:
 
         # Process all automatically
         for plume_file in self.scan_files:
-            # Load plume spectrum and automatically process it
+            # Load plume spectrum and automatically process it (processing is handled outside of this class)
             self.plume_path = self.scan_dir + plume_file
             self.load_plume(save=save)
 
             if not batch:
+                # Wait for button click to proceed to next spectrum
                 var = tk.IntVar()
                 self.process_butt.configure(text='NEXT SPECTRUM', command=lambda: var.set(1))
                 self.process_butt.wait_variable(var)
@@ -318,18 +323,25 @@ class PostProcess:
 
             if not batch:
                 # Save processed spectrum
-                self.save_processed_spec(plume_file)
+                self.set_doas_filename(plume_file)
+                self.save_obj.save_processed_spec(self.dark_path, self.clear_path, self.plume_path, self.doas_path)
 
         # Calculate emission rate
         self.scan_proc.calc_emission_rate()
         self.cd_plot.update_emission_rate()
-        self.save_scan()
+        # self.save_scan()
+        self.save_obj.save_scan(self.save_path)
 
         if not batch:
+            # Re configure the button to control the start of a processing loop again
             self.process_butt.configure(text='Process', command=self.process_doas)
 
-    def save_processed_spec(self, filename):
-        """Saves processed spectrum with all useful information"""
+            # Add a small lag when processing has finished
+            # Prevents the user quickly moving to the next scan by accident
+            time.sleep(1)
+
+    def set_doas_filename(self, filename):
+        """Organise doas filename for saving purposes"""
         filename = filename.split('.')[0].replace('clear', 'doas')
         filename = filename.split('.')[0].replace('plume', 'doas')  # Filename may contain plume or clear
         doas_filename = filename + '_1.txt'
@@ -340,22 +352,22 @@ class PostProcess:
             self.doas_path = self.save_path + filename + '_{}.txt'.format(idx)
             idx += 1
 
-        try:
-            np.savetxt(self.doas_path, np.transpose([self.doas_worker.wavelengths_cut, self.doas_worker.ref_spec_fit['SO2'],
-                                                     self.doas_worker.abs_spec_cut]),
-                       header='Processed DOAS spectrum\n'
-                              'Dark spectrum: {}\nClear spectrum: {}\nPlume spectrum: {}\n'
-                              'Shift: {}\nStretch: {}\n'
-                              'Stray range [nm]: {}:{}\nFit window [nm]: {}:{}\n'
-                              'Column density [ppm.m]: {}\n'
-                              'Wavelength [nm]\tReference spectrum (fitted)\tAbsorbance spectrum'.format(
-                              self.dark_path, self.clear_path, self.plume_path,
-                              self.doas_worker.shift, self.doas_worker.stretch,
-                              self.doas_worker.start_stray_wave, self.doas_worker.end_stray_wave,
-                              self.doas_worker.start_fit_wave, self.doas_worker.end_fit_wave,
-                              self.doas_worker.column_amount))
-        except:
-            print('Permission denied! Could not save processed spectra. Please change the save directory')
+        # try:
+        #     np.savetxt(self.doas_path, np.transpose([self.doas_worker.wavelengths_cut, self.doas_worker.ref_spec_fit['SO2'],
+        #                                              self.doas_worker.abs_spec_cut]),
+        #                header='Processed DOAS spectrum\n'
+        #                       'Dark spectrum: {}\nClear spectrum: {}\nPlume spectrum: {}\n'
+        #                       'Shift: {}\nStretch: {}\n'
+        #                       'Stray range [nm]: {}:{}\nFit window [nm]: {}:{}\n'
+        #                       'Column density [ppm.m]: {}\n'
+        #                       'Wavelength [nm]\tReference spectrum (fitted)\tAbsorbance spectrum'.format(
+        #                       self.dark_path, self.clear_path, self.plume_path,
+        #                       self.doas_worker.shift, self.doas_worker.stretch,
+        #                       self.doas_worker.start_stray_wave, self.doas_worker.end_stray_wave,
+        #                       self.doas_worker.start_fit_wave, self.doas_worker.end_fit_wave,
+        #                       self.doas_worker.column_amount))
+        # except:
+        #     print('Permission denied! Could not save processed spectra. Please change the save directory')
 
     def save_scan(self):
         """Saves scan information"""

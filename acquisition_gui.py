@@ -12,6 +12,7 @@ from matplotlib.figure import Figure
 from gui_subs import SettingsGUI
 from controllers import SpecCtrl, SpectrometerConnectionError, ScanProperties
 from doas_routine import DOASWorker, ScanProcess
+from save_spec import SaveSpectra
 
 import numpy as np
 from datetime import datetime
@@ -37,6 +38,7 @@ class AcquisitionFrame:
         self.spec_plot = spec_plot      # Setup SpectraPlot object, used for plotting spectra
         self.doas_plot = doas_plot
         self.cd_plot = cd_plot
+        self.save_obj = SaveSpectra(self.doas_worker, self.scan_proc)
 
         # PROBABLY SETUP THIS PATH THROUGH A FUNCTION WHICH CREATES A NEW DATE DIRECTORY
         # OR THIS MAY BE SETUP OUTSIDE OF THIS CLASS - BY THE MAIN CLASS
@@ -56,8 +58,13 @@ class AcquisitionFrame:
         self.start_int_time = 100       # Integration time to load program with
         self.start_coadd = 1
         self.start_scan_range = 45      # Scan angle range to load program with
+
+        # Try to initiate spectrometer control class
         try:
             self.spec_ctrl = SpecCtrl(int_time=self.start_int_time, coadd=self.start_coadd)  # Holds spectral control class
+
+            # Update save object with spec ctrl if we can initiate it
+            self.save_obj.spec_ctrl = self.spec_ctrl
         except SpectrometerConnectionError:
             print('Warning!!! No spectrometer detected. Please connect now.')
             self.spec_ctrl = None
@@ -217,7 +224,8 @@ class AcquisitionFrame:
         else:
             print('Unrecognised scanning flag. Stopping acquisition')
             return
-        self.doas_worker.save_dark(self.dark_path)
+        # self.doas_worker.save_dark(self.dark_path)
+        self.save_obj.save_dark(self.dark_path)
 
         # Change GUI label for dark file
         self.dark_file_label.configure(text=dark_filename)
@@ -256,7 +264,8 @@ class AcquisitionFrame:
         else:
             print('Unrecognised scanning flag. Stopping acquisition')
             return
-        self.doas_worker.save_clear_raw(self.clear_path)
+        # self.doas_worker.save_clear_raw(self.clear_path)
+        self.save_obj.save_clear_raw(self.clear_path)
 
         # Change GUI label for dark file
         self.clear_file_label.configure(text=clear_filename)
@@ -324,7 +333,8 @@ class AcquisitionFrame:
         else:
             print('Unrecognised scanning flag. Stopping acquisition')
             return
-        self.doas_worker.save_plume_raw(self.plume_path)
+        # self.doas_worker.save_plume_raw(self.plume_path)
+        self.save_obj.save_plume_raw(self.plume_path)
 
         # Update plot with new data
         self.spec_plot.update_plume()
@@ -335,7 +345,20 @@ class AcquisitionFrame:
         # Update plot and save processed spectrum if data was processed
         if self.doas_worker.processed_data:
             self.doas_plot.update_plot()
-            self.save_processed_spec()
+            # self.save_processed_spec()
+
+            # Setup directory and filename
+            time = datetime.now().strftime('%Y-%m-%dT%H%M%S')
+            doas_filename = '{}_doas.txt'.format(time)
+            if self.scanning:
+                doas_dir = self.scan_dir + 'Processing_1/'
+            else:
+                doas_dir = self.save_path_ind + 'Processing_1/'
+            if not os.path.exists(doas_dir):
+                os.mkdir(doas_dir)
+            self.doas_path = doas_dir + doas_filename
+
+            self.save_obj.save_processed_spec(self.dark_path, self.clear_path, self.plume_path, self.doas_path)
 
     def acquisition_handler(self):
         """Controls acquisitions"""
@@ -419,7 +442,8 @@ class AcquisitionFrame:
 
             self.scan_proc.calc_emission_rate()
             self.cd_plot.update_emission_rate()
-            self.save_scan()
+            # self.save_scan()
+            self.save_obj.save_scan(self.scan_dir + 'Processing_1/')
 
             # Reset stepper motor
             for i in range(num_steps):
@@ -466,6 +490,9 @@ class AcquisitionFrame:
         if self.spec_ctrl is None:
             try:
                 self.spec_ctrl = SpecCtrl(int_time=self.start_int_time, coadd=self.coadd.get())  # Holds spectral control class
+
+                # Update save object with spec ctrl if we can initiate it
+                self.save_obj.spec_ctrl = self.spec_ctrl
             except SpectrometerConnectionError:
                 print('Warning!!! No spectrometer detected. Please connect now.')
                 return 0

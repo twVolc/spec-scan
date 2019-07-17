@@ -75,6 +75,9 @@ class DOASWorker:
         self.mse_vals_cut = np.zeros(len(self.vals_ca_cut))
         self.mse_vals = np.zeros(len(self.vals_ca))  # Array to hold mse values
 
+        self.mse = None
+        self.column_amount = None
+
         self.filetypes = dict(defaultextension='.png', filetypes=[('PNG', '*.png')])
 
         # ----------------------------------------------------------------------------------
@@ -409,6 +412,7 @@ class DOASWorker:
             mse_vals_new[idx] = np.mean(np.power(self.abs_spec_cut - ref_spec_fit, 2))  # Calculate MSE of fit
             idx += 1
         min_idx_2 = np.argmin(mse_vals_new)
+        self.mse = mse_vals_new[min_idx_2]
         self.column_amount = vals_ca_new[min_idx_2]
 
 
