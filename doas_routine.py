@@ -11,6 +11,7 @@ from tkinter import filedialog
 import matplotlib.pyplot as plt
 from astropy.convolution import convolve
 import scipy.integrate as integrate
+from scipy.optimize import curve_fit
 
 class DOASWorker:
     """Class to control DOAS processing
@@ -58,6 +59,7 @@ class DOASWorker:
         self.ref_spec_filter = dict()   # Filtered reference spectrum
         self.ref_spec_fit = dict()      # Ref spectrum scaled by ppmm (for plotting)
         self.ref_spec_types = ['SO2', 'O3', 'ring'] # List of reference spectra types accepted/expected
+        self.ref_spec_used  = ['SO2']    # Reference spectra we actually want to use at this time (similar to ref_spec_types - perhaps one is obsolete (or should be!)
         self.abs_spec = None
         self.abs_spec_cut = None
         self.abs_spec_filt = None
@@ -75,7 +77,7 @@ class DOASWorker:
         self.mse_vals_cut = np.zeros(len(self.vals_ca_cut))
         self.mse_vals = np.zeros(len(self.vals_ca))  # Array to hold mse values
 
-        self.mse = None
+        self.std_err = None
         self.column_amount = None
 
         self.filetypes = dict(defaultextension='.png', filetypes=[('PNG', '*.png')])
@@ -338,6 +340,22 @@ class DOASWorker:
                    header='Raw in-plume spectrum\n'
                           '-Not dark-corrected\nWavelength [nm]\tIntensity [DN]')
 
+    @staticmethod
+    def doas_fit(ref_spec, *fit_params):
+        """
+        DOAS fit function
+
+        Parameters
+        -----------
+        ref_spec : array-like object
+            Contains all (k) reference spectra to be fitted in a (k,N) array.
+            N is the size of the spectrum grid
+        """
+        # Unpack fit scalars into column vector
+        scalars = np.transpose(np.array([list(fit_params)]))
+
+        return np.sum(ref_spec * scalars, axis=0)
+
     def poly_doas(self):
         """
         Performs main processing in polynomial fitting DOAS retrieval
@@ -386,47 +404,20 @@ class DOASWorker:
         # self.ref_spec_cut['SO2'] = self.ref_spec_filter['SO2'][self.fit_window_ref]
 
         # ------------------------------------------------------------------------------------------
-        # Attempting faster iterative process by not using every vals_ca value initially
-        idx = 0
-        for i in self.vals_ca_cut:
-            ref_spec_fit = self.ref_spec_cut['SO2'] * i
+        # Scipy optimize curve_fit method
 
-            self.mse_vals_cut[idx] = np.mean(np.power(self.abs_spec_cut - ref_spec_fit, 2))  # Calculate MSE of fit
-            idx += 1
+        # Pack all requested reference spectra into an array for curve fitting
+        ref_spectra_packed = np.empty((len(self.ref_spec_used), len(self.abs_spec_cut)))
+        i = 0
+        for spec in self.ref_spec_used:
+            ref_spectra_packed[i, :] = self.ref_spec_cut[spec]
+            i += 1
 
-        # Find best fit, then hone in on that region to iterate through at a step of 1 ppm.m
-        min_idx_1 = np.argmin(self.mse_vals_cut)
-
-        if min_idx_1 == 0:
-            vals_ca_new = self.vals_ca[:self.vals_ca_cut_idxs[min_idx_1 + 2]]
-        elif min_idx_1 == len(self.mse_vals_cut) - 1:
-            vals_ca_new = self.vals_ca[self.vals_ca_cut_idxs[min_idx_1 - 2]:]
-        else:
-            vals_ca_new = self.vals_ca[self.vals_ca_cut_idxs[min_idx_1 - 2]:self.vals_ca_cut_idxs[min_idx_1 + 2]]
-
-        mse_vals_new = np.zeros(len(vals_ca_new))
-        idx = 0
-        for i in vals_ca_new:
-            ref_spec_fit = self.ref_spec_cut['SO2'] * i
-
-            mse_vals_new[idx] = np.mean(np.power(self.abs_spec_cut - ref_spec_fit, 2))  # Calculate MSE of fit
-            idx += 1
-        min_idx_2 = np.argmin(mse_vals_new)
-        self.mse = mse_vals_new[min_idx_2]
-        self.column_amount = vals_ca_new[min_idx_2]
-
-
-        # Standard slow iterative process
-        # idx = 0
-        # for i in self.vals_ca:
-        #     ref_spec_fit = self.ref_spec_cut['SO2'] * i
-        #
-        #     self.mse_vals[idx] = np.mean(np.power(self.abs_spec_cut - ref_spec_fit, 2))  # Calculate MSE of fit
-        #     idx += 1
-
-        # Determine column amount from best fit
-        # self.min_idx = np.argmin(self.mse_vals)
-        # self.column_amount = self.vals_ca[self.min_idx]
+        # Run fit
+        column_amounts, pcov = curve_fit(self.doas_fit, ref_spectra_packed, self.abs_spec_cut,
+                                         p0=np.ones(ref_spectra_packed.shape[0]))
+        self.std_err = round(np.sqrt(np.diag(pcov))[0], 1)
+        self.column_amount = int(round(column_amounts[0]))
 
         # Generate scaled reference spectrum
         self.ref_spec_fit['SO2'] = self.ref_spec_cut['SO2'] * self.column_amount

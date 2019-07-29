@@ -304,7 +304,7 @@ class DOASPlot:
         for i in range(2):
             self.ax.plot([250, 400], [0, 0], self.plt_colours[i], linewidth=1)
         self.ax.legend(('Measured', 'Fitted reference'), loc=1, framealpha=1)
-        self.ax.set_title('Column density [ppm.m]: N/A          MSE: N/A')
+        self.ax.set_title('Column density [ppm.m]: N/A          STD Error: N/A')
         self.fig.tight_layout()
 
         self.canv = FigureCanvasTkAgg(self.fig, master=self.frame)
@@ -344,8 +344,8 @@ class DOASPlot:
         if ylims == 0:
             ylims = 0.05
         self.ax.set_ylim([-ylims, ylims])
-        self.ax.set_title('Column density [ppm.m]: {}          MSE: {:.2e}'.format(
-            self.doas_worker.column_amount, self.doas_worker.mse))
+        self.ax.set_title('Column density [ppm.m]: {}          STD Error: {}'.format(
+            self.doas_worker.column_amount, self.doas_worker.std_err))
 
         # Draw updates
         self.Q.put(1)

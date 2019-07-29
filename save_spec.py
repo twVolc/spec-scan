@@ -90,13 +90,13 @@ class SaveSpectra:
                           'Shift: {}\nStretch: {}\n'
                           'Stray range [nm]: {}:{}\nFit window [nm]: {}:{}\n'
                           'Column density [ppm.m]: {}\n'
-                          'MSE: {:.2e}\n'
+                          'STD Error: {}\n'
                           'Wavelength [nm]\tReference spectrum (fitted)\tAbsorbance spectrum'.format(
                           dark_path, clear_path, plume_path,
                           self.doas_worker.shift, self.doas_worker.stretch,
                           self.doas_worker.start_stray_wave, self.doas_worker.end_stray_wave,
                           self.doas_worker.start_fit_wave, self.doas_worker.end_fit_wave,
-                          self.doas_worker.column_amount, self.doas_worker.mse))
+                          self.doas_worker.column_amount, self.doas_worker.std_err))
 
     def save_scan(self, save_dir):
         """Saves scan information"""
