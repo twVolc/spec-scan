@@ -307,7 +307,7 @@ class AcquisitionFrame:
                           self.doas_worker.shift, self.doas_worker.stretch,
                           self.doas_worker.start_stray_wave, self.doas_worker.end_stray_wave,
                           self.doas_worker.start_fit_wave, self.doas_worker.end_fit_wave,
-                          self.doas_worker.column_amount))
+                          self.doas_worker.column_density['SO2']))
 
     def plume_capture(self):
         """Perform single acquisition"""
@@ -432,7 +432,7 @@ class AcquisitionFrame:
                 self.plume_capture()
 
                 # Update scan processing object with new data
-                self.scan_proc.add_data(scan_angle, self.doas_worker.column_amount)
+                self.scan_proc.add_data(scan_angle, self.doas_worker.column_density['SO2'])
 
                 # Update column densities plot
                 self.cd_plot.update_plot()

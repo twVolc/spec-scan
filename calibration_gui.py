@@ -405,17 +405,20 @@ class RefPlot:
     """
     Plots and allows interaction with the reference spectrum
     """
-    def __init__(self, frame, doas_worker=DOASWorker(), init_dir='C:\\', fig_size=(10,4), dpi=100, ref_spec_path=None):
-        self.doas_worker = doas_worker
-
-        self.init_dir = init_dir
-
-        self.fig_size = fig_size
-        self.dpi = dpi
+    def __init__(self, frame, doas_worker=DOASWorker(), init_dir='C:\\', fig_size=(10,4), dpi=100,
+                 ref_spec_path=None, species='SO2'):
+        self.doas_worker = doas_worker  # DOAS processor
+        self.species = species          # Gas species
+        self.init_dir = init_dir        # Inital directory for loading dialog box
+        self.fig_size = fig_size        # Figure size (tuple)
+        self.dpi = dpi                  # DPI of figure
 
         self.setts = SettingsGUI()
         self.pdx = 5
         self.pdy = 5
+
+        self.min_wavelength = 250       # Minimum wavelength shown on plot
+        self.max_wavelength = 350       # Maximum wavelength shown on plot
 
         # Setup gui
         self.__setup_gui__(frame)
@@ -429,8 +432,8 @@ class RefPlot:
         # -------------------------
         # Reference Spectrum Setup
         # -------------------------
-        self.frame = tk.LabelFrame(frame, text='Reference Spectrum', font=self.setts.mainFontBold,
-                                      relief=tk.RAISED, borderwidth=2, bg=self.setts.bgColour)
+        self.frame = tk.LabelFrame(frame, text='{} Reference Spectrum'.format(self.species),
+                                   font=self.setts.mainFontBold, relief=tk.RAISED, borderwidth=2, bg=self.setts.bgColour)
         # self.refFrame.grid(row=0, column=0, padx=self.pdx, pady=self.pdy)
         self.frame.pack(side=tk.LEFT)
 
@@ -482,21 +485,23 @@ class RefPlot:
             self.nameRef.configure(text='...' + self.ref_spec_path[-50:])
         else:
             self.nameRef.configure(text=self.ref_spec_path)
-        self.doas_worker.load_ref_spec(self.ref_spec_path, 'SO2')
+        self.doas_worker.load_ref_spec(self.ref_spec_path, self.species)
 
         self.ref_spec_file = self.ref_spec_path.split('/')[-1]
 
         # Set convolution plot to zero then update
-        self.ax_SO2.lines[1].set_data([self.doas_worker.ref_spec['SO2'][0, 0], self.doas_worker.ref_spec['SO2'][-1,0]],
-                                      [0,0])
+        self.ax_SO2.lines[1].set_data([self.doas_worker.ref_spec[self.species][0, 0],
+                                       self.doas_worker.ref_spec[self.species][-1,0]], [0,0])
+
         # Plot reference spectrum
         self.plot_ref_spec()
 
     def plot_ref_spec(self):
         """Plot up reference spectrum"""
-        self.ax_SO2.lines[0].set_data(self.doas_worker.ref_spec['SO2'][:, 0], self.doas_worker.ref_spec['SO2'][:, 1])
-        self.ax_SO2.set_xlim([self.doas_worker.ref_spec['SO2'][0, 0], self.doas_worker.ref_spec['SO2'][-1, 0]])
-        self.ax_SO2.set_ylim([0, np.amax(self.doas_worker.ref_spec['SO2'][:, 1])])
+        self.ax_SO2.lines[0].set_data(self.doas_worker.ref_spec[self.species][:, 0], self.doas_worker.ref_spec[self.species][:, 1])
+        # self.ax_SO2.set_xlim([self.doas_worker.ref_spec[self.species][0, 0], self.doas_worker.ref_spec[self.species][-1, 0]])
+        self.ax_SO2.set_xlim(self.min_wavelength, self.max_wavelength)
+        self.ax_SO2.set_ylim([0, np.amax(self.doas_worker.ref_spec[self.species][:, 1])])
         self.ax_SO2.set_title('Reference Spectrum: %s' % self.ref_spec_file)
         self.refCanvas.draw()
 
@@ -514,6 +519,6 @@ class RefPlot:
         self.doas_worker.conv_ref_spec()
 
         # Update plot (only if convolution was successful - it fails if wavelength data is not present - need to acquire spectrum with spectrometer first)
-        if 'SO2' in self.doas_worker.ref_spec_conv:
-            self.ax_SO2.lines[1].set_data(self.doas_worker.wavelengths, self.doas_worker.ref_spec_conv['SO2'])
+        if self.species in self.doas_worker.ref_spec_conv:
+            self.ax_SO2.lines[1].set_data(self.doas_worker.wavelengths, self.doas_worker.ref_spec_conv[self.species])
             self.refCanvas.draw()

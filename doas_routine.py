@@ -11,16 +11,21 @@ from tkinter import filedialog
 import matplotlib.pyplot as plt
 from astropy.convolution import convolve
 import scipy.integrate as integrate
-from scipy.optimize import curve_fit
+from scipy.optimize import curve_fit, OptimizeWarning
+import warnings
+
+warnings.filterwarnings("ignore", category=OptimizeWarning)
 
 class DOASWorker:
-    """Class to control DOAS processing
+    """
+    Class to control DOAS processing
     General order of play for processing:
     Initiate class,
     get_ref_spectrum()
     set_fit_window()
-    shift_spectrum()"""
-    def __init__(self, routine=2):
+    shift_spectrum()
+    """
+    def __init__(self, routine=2, species=['SO2']):
         self.routine = routine  # Defines routine to be used, either (1) Polynomial or (2) Digital Filtering
 
         # ======================================================================================================================
@@ -59,10 +64,11 @@ class DOASWorker:
         self.ref_spec_filter = dict()   # Filtered reference spectrum
         self.ref_spec_fit = dict()      # Ref spectrum scaled by ppmm (for plotting)
         self.ref_spec_types = ['SO2', 'O3', 'ring'] # List of reference spectra types accepted/expected
-        self.ref_spec_used  = ['SO2']    # Reference spectra we actually want to use at this time (similar to ref_spec_types - perhaps one is obsolete (or should be!)
+        self.ref_spec_used  = species    # Reference spectra we actually want to use at this time (similar to ref_spec_types - perhaps one is obsolete (or should be!)
         self.abs_spec = None
         self.abs_spec_cut = None
         self.abs_spec_filt = None
+        self.abs_spec_species = dict()  # Dictionary of absorbances isolated for individual species
         self.ILS = None                 # Instrument line shape (will be a numpy array)
         self.processed_data = False     # Bool to define if object has processed DOAS yet - will become true once process_doas() is run
 
@@ -78,7 +84,7 @@ class DOASWorker:
         self.mse_vals = np.zeros(len(self.vals_ca))  # Array to hold mse values
 
         self.std_err = None
-        self.column_amount = None
+        self.column_density = dict()
 
         self.filetypes = dict(defaultextension='.png', filetypes=[('PNG', '*.png')])
 
@@ -218,6 +224,10 @@ class DOASWorker:
         """Load raw reference spectrum"""
         self.ref_spec[species] = np.loadtxt(pathname)
 
+        # Remove un-needed data above 400 nm, which may slow down processing
+        idxs = np.where(self.ref_spec[species][:, 0] > 400)
+        self.ref_spec[species] = self.ref_spec[species][:np.min(idxs), :]
+
         # Assume we have loaded a new spectrum, so set this to False - ILS has not been convolved yet
         self.ref_convolved = False
 
@@ -229,20 +239,20 @@ class DOASWorker:
         # --------------------------------
 
     def conv_ref_spec(self):
-        """Convolves reference spectrum with instument line shape (ILS)
-        after first interpolating to spectrometer wavelengths"""
+        """
+        Convolves reference spectrum with instument line shape (ILS)
+        after first interpolating to spectrometer wavelengths
+        """
         if self.wavelengths is None:
             print('No wavelength data to perform convolution')
             return
-
-        species = [f for f in self.ref_spec_types if f in self.ref_spec.keys()]
 
         # Need an odd sized array for convolution, so if even we omit the last pixel
         if self.ILS.size % 2 == 0:
             self.ILS = self.ILS[:-1]
 
         # Loop through all reference species we have loaded and resample their data to the spectrometers wavelengths
-        for f in species:
+        for f in self.ref_spec_used:
             self.ref_spec_interp[f] = np.interp(self.wavelengths, self.ref_spec[f][:, 0], self.ref_spec[f][:, 1])
             self.ref_spec_conv[f] = convolve(self.ref_spec_interp[f], self.ILS)
             self.ref_spec_ppmm[f] = self.ref_spec_conv[f] * self.ppmm_conversion
@@ -354,7 +364,10 @@ class DOASWorker:
         # Unpack fit scalars into column vector
         scalars = np.transpose(np.array([list(fit_params)]))
 
-        return np.sum(ref_spec * scalars, axis=0)
+        # Sum reference spectra to create total absorbance for comparison with measured absorbance spectrum
+        total_absorbance = np.sum(ref_spec * scalars, axis=0)
+
+        return total_absorbance
 
     def poly_doas(self):
         """
@@ -381,14 +394,17 @@ class DOASWorker:
             idx += 1
 
         self.min_idx = np.argmin(self.mse_vals)
-        self.column_amount = self.vals_ca[self.min_idx]
+        self.column_density['SO2'] = self.vals_ca[self.min_idx]
 
     def fltr_doas(self):
-        """Performs main retrieval in digital filtering DOAS retrieval"""
+        """
+        Performs main retrieval in digital filtering DOAS retrieval
+        """
         self.wavelengths_cut = self.wavelengths[self.fit_window]    # Extract wavelengths (used in plotting)
 
+        # Calculate absorbance
         with np.errstate(divide='ignore', invalid='ignore'):
-            self.abs_spec = np.log(np.divide(self.clear_spec_corr, self.plume_spec_corr))   # Calculate absorbance
+            self.abs_spec = np.log(np.divide(self.clear_spec_corr, self.plume_spec_corr))
 
         # Remove nans and infs (filter function doesn't work if they are included)
         self.abs_spec[np.isinf(self.abs_spec)] = np.nan
@@ -397,15 +413,20 @@ class DOASWorker:
         self.abs_spec_filt = signal.lfilter(self.filt_B, self.filt_A, self.abs_spec)    # Filter absorbance spectrum
         self.abs_spec_cut = self.abs_spec_filt[self.fit_window]                         # Extract fit window
 
-        # Filter reference spectrum and extract fit window
-        self.ref_spec_filter['SO2'] = signal.lfilter(self.filt_B, self.filt_A, self.ref_spec_ppmm['SO2'])
-        # PUT STRETCH HERE
-        self.ref_spec_cut[self.ref_spec_types[0]] = self.stretch_spectrum(self.ref_spec_types[0])
+        # Loop through reference spectra and prepare them for processing
+        for spec in self.ref_spec_used:
+
+            # Filter reference spectrum and extract fit window
+            self.ref_spec_filter[spec] = signal.lfilter(self.filt_B, self.filt_A, self.ref_spec_ppmm[spec])
+
+            # Stretch spectrum
+            self.ref_spec_cut[spec] = self.stretch_spectrum(spec)
+
         # self.ref_spec_cut['SO2'] = self.ref_spec_filter['SO2'][self.fit_window_ref]
 
         # ------------------------------------------------------------------------------------------
-        # Scipy optimize curve_fit method
-
+        # Scipy.optimize.curve_fit least squares fitting
+        # ------------------------------------------------------------------------------------------
         # Pack all requested reference spectra into an array for curve fitting
         ref_spectra_packed = np.empty((len(self.ref_spec_used), len(self.abs_spec_cut)))
         i = 0
@@ -414,18 +435,53 @@ class DOASWorker:
             i += 1
 
         # Run fit
-        column_amounts, pcov = curve_fit(self.doas_fit, ref_spectra_packed, self.abs_spec_cut,
-                                         p0=np.ones(ref_spectra_packed.shape[0]))
+        column_densities, pcov = curve_fit(self.doas_fit, ref_spectra_packed, self.abs_spec_cut,
+                                           p0=np.ones(ref_spectra_packed.shape[0]))
         self.std_err = round(np.sqrt(np.diag(pcov))[0], 1)
-        self.column_amount = int(round(column_amounts[0]))
 
-        # Generate scaled reference spectrum
-        self.ref_spec_fit['SO2'] = self.ref_spec_cut['SO2'] * self.column_amount
+        # Loop through species to unpack results
+        i = 0
+        self.ref_spec_fit['Total'] = np.zeros(len(self.abs_spec_cut))
+        for spec in self.ref_spec_used:
+            # Unpack column densities to dictionary
+            self.column_density[spec] = int(round(column_densities[i]))
+
+            # Generate scaled reference spectrum
+            self.ref_spec_fit[spec] = self.ref_spec_cut[spec] * self.column_density[spec]
+
+            # Add scaled reference spectrum to total ref spec
+            self.ref_spec_fit['Total'] += self.ref_spec_fit[spec]
+
+            i += 1
+
+    def gen_abs_specs(self):
+        """
+        Generate absorbance spectra for individual species and match to measured absorbance
+        :return:
+        """
+        # Iterate through reference spectra
+        for spec in self.ref_spec_used:
+
+            # Retrieve all ref spectra other than that held in spec
+            other_species = [f for f in self.ref_spec_used if f is not spec]
+
+            # Subtract contributions of these other spectra to absorption
+            self.abs_spec_species[spec] = self.abs_spec_cut
+            for i in other_species:
+                self.abs_spec_species[spec] = self.abs_spec_species[spec] - self.ref_spec_fit[i]
+
+        # Setup total absorbance spectrum as 'Total' key
+        self.abs_spec_species['Total'] = self.abs_spec_cut
+
+        # Calculate final residual by subtracting all absorbing species
+        self.abs_spec_species['residual'] = self.abs_spec_cut
+        for spec in self.ref_spec_used:
+            self.abs_spec_species['residual'] = self.abs_spec_species['residual'] - self.ref_spec_fit[spec]
 
 
     def poly_plot_gen(self):
         """Generate arrays to be plotted -> residual, fitted spectrum"""
-        self.ref_spec_fit['SO2'] = self.ref_spec_cut['SO2'] * self.column_amount
+        self.ref_spec_fit['SO2'] = self.ref_spec_cut['SO2'] * self.column_density['SO2']
         self.residual = self.abs_spec_cut - self.ref_spec_fit['SO2']
         poly_fit = np.polyfit(self.fit_window, self.residual, self.poly_order)  # Fit polynomial to residual
         self.poly_vals = np.polyval(poly_fit, self.fit_window)  # Generate polynomial values for fitting window
@@ -487,6 +543,10 @@ class DOASWorker:
         # Run processing
         self.fltr_doas()
 
+        # Generate absorbance spectra for individual species
+        self.gen_abs_specs()
+
+        # Set flag defining that data has been fully processed
         self.processed_data = True
 
 

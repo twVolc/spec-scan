@@ -242,10 +242,18 @@ class PostProcess:
 
     def load_scan(self):
         """Load scan directory"""
+        # Save old scan directory if we need to revert back
+        scan_dir_old = self.scan_dir
+
+        # Open dialog to select new scan directory
         self.scan_dir = filedialog.askdirectory(initialdir=self.init_dir, title='Select scan folder')
+
+        # Revert to old scan directory if file dialog box was closed without selecting a directory
         if not self.scan_dir:
+            self.scan_dir = scan_dir_old
             return
 
+        # Configure scan directory label widget - truncate string if it is too long for the widget
         self.scan_dir += '/'
         self.init_dir = self.scan_dir
         if len(self.scan_dir) > self.str_len_max:
@@ -318,7 +326,7 @@ class PostProcess:
 
             # Update CD scan plot
             scan_angle += self.scan_cont.scan_incr
-            self.scan_proc.add_data(scan_angle, self.doas_worker.column_amount)
+            self.scan_proc.add_data(scan_angle, self.doas_worker.column_density['SO2'])
             self.cd_plot.update_plot()
 
             if not batch:
@@ -329,7 +337,8 @@ class PostProcess:
         # Calculate emission rate
         self.scan_proc.calc_emission_rate()
         self.cd_plot.update_emission_rate()
-        # self.save_scan()
+
+        # Save scan data
         self.save_obj.save_scan(self.save_path)
 
         if not batch:
@@ -365,7 +374,7 @@ class PostProcess:
         #                       self.doas_worker.shift, self.doas_worker.stretch,
         #                       self.doas_worker.start_stray_wave, self.doas_worker.end_stray_wave,
         #                       self.doas_worker.start_fit_wave, self.doas_worker.end_fit_wave,
-        #                       self.doas_worker.column_amount))
+        #                       self.doas_worker.column_density))
         # except:
         #     print('Permission denied! Could not save processed spectra. Please change the save directory')
 

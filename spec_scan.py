@@ -23,7 +23,7 @@ from matplotlib.backend_bases import key_press_handler  # implement the default 
 from matplotlib.figure import Figure
 # from matplotlib import rcParams
 # rcParams.update({'figure.autolayout': True})  # Can make figure labels visible but also does strange things
-
+import warnings
 import numpy as np
 import sys
 
@@ -36,6 +36,10 @@ from postprocess_gui import PostProcess
 from plotting_gui import SpectraPlot, DOASPlot, CDPlot
 from calibration_gui import CalPlot, RefPlot
 
+# Suppress some warning messages
+warnings.filterwarnings("ignore", category=matplotlib.MatplotlibDeprecationWarning)
+warnings.filterwarnings("ignore", '.*tight_layout.*')
+
 class PySpec(ttk.Frame):
     '''PySpec GUI'''
     def __init__(self, parent, x_size, y_size):
@@ -44,13 +48,14 @@ class PySpec(ttk.Frame):
         parent.title('PySpec')
         self.parent.protocol('WM_DELETE_WINDOW', self.exit_app)
 
-        self.version = '2.0, September 17 2017.'  # PyCam Version
-
-        self.DOAS = DOASWorker(1)
-        self.scan_proc = ScanProcess()
-
+        # Read in configuration file and extract settings
         self.config = config_parser()
 
+        # Initiate DOASWorrker for main DOAS processing
+        self.DOAS = DOASWorker(1, species=self.config['species'])
+
+        # Initiate scan processing object
+        self.scan_proc = ScanProcess()
         # ==============================================================================================================
         # GUI SETUP
         # ==============================================================================================================
@@ -85,17 +90,18 @@ class PySpec(ttk.Frame):
         self.frame_1 = ttk.Frame(self.main_canvas_scroll.frame, borderwidth=2)
         self.frame_1.pack(expand=True, fill=tk.BOTH, anchor='nw')
 
-        # Messages frame
+        # Initiate messages frame and pack into GUI
         self.messages = MessagesGUI(self.frame_1)
         self.messages.frame.pack(side='right', fill=tk.Y, anchor='e', expand=False)
 
-        # Plot frame
+        # Generate widget for holding all plotting frames
         self.plot_frame = ttk.Frame(self.frame_1)
         self.plot_frame.pack(side='right', expand=1, anchor='e')
 
-        # Spectra + DOAS plots
+        # Initiate spectra + DOAS plots and pack into GUI
         self.doas_frame = DOASPlot(self.parent, self.plot_frame, self.DOAS,
-                                   figsize=self.config['doas_fig_size'], dpi=self.config['dpi'])
+                                   figsize=self.config['doas_fig_size'], dpi=self.config['dpi'],
+                                   species=self.config['species'])
         self.spec_frame = SpectraPlot(self.parent, self.plot_frame, self.DOAS, self.doas_frame,
                                       figsize=self.config['spec_fig_size'], dpi=self.config['dpi'])
         self.spec_frame.frame.pack(side='top', expand=1, anchor='n', fill=tk.X)
@@ -105,17 +111,18 @@ class PySpec(ttk.Frame):
                               fig_size=self.config['scan_fig_size'], dpi=self.config['dpi'])
         self.cd_plot.frame.pack(side='top', fill=tk.BOTH, expand=1, anchor='nw')
 
-        # Left side of main tab GUI
+        # Generate left side panel of main tab GUI
         self.left_main_frame = ttk.Frame(self.frame_1)
         self.left_main_frame.pack(side='left', expand=1, fill=tk.BOTH)
 
-        # Acquisition frame
+        # Initiate acquisition frame and pack it into GUI
         self.acq_frame = AcquisitionFrame(self.left_main_frame, self.DOAS, self.scan_proc,
                                           self.spec_frame, self.doas_frame, self.cd_plot, self.config['arduino_COM'],
                                           save_path=self.config['init_dir'])
         self.acq_frame.frame.pack(side='top', expand=False, anchor='nw', fill=tk.X)
         self.doas_frame.acq_obj = self.acq_frame
 
+        # Initiate post-process control frame and pack it into GUI
         self.post_process_frame = PostProcess(self.left_main_frame, self.DOAS, self.scan_proc,
                                               self.spec_frame, self.doas_frame, self.cd_plot)
         self.post_process_frame.frame.pack(side='top', expand=True, anchor='nw', fill=tk.X)
@@ -125,20 +132,33 @@ class PySpec(ttk.Frame):
         # ==============================================================================================================
         self.cal_canvas = tk.Canvas(self.calibFrame, borderwidth=0, background=self.bgColour)
         self.cal_canvas_scroll = ScrollWindow(self.calibFrame, self.cal_canvas)
+        self.ref_spec_frames = ttk.Frame(self.cal_canvas_scroll.frame, borderwidth=2)
+        self.ref_spec_frames.pack(side=tk.LEFT, expand=True, fill=tk.BOTH, anchor='nw')
+
         self.frame_2 = ttk.Frame(self.cal_canvas_scroll.frame, borderwidth=2)
         self.frame_2.pack(expand=True, fill=tk.BOTH, anchor='nw')
 
         self.ILS_frame = CalPlot(self.frame_2, self.acq_frame.spec_ctrl, self.DOAS, config=self.config)
         self.ILS_frame.frame.pack(side=tk.RIGHT, fill=tk.Y, expand=1, anchor='e')
 
-        self.ref_frame = RefPlot(self.frame_2, self.DOAS, self.config['ref_spec_dir'], self.config['ref_fig_size'],
-                                 self.config['dpi'], self.config['ref_spec_SO2'])
-        self.ref_frame.frame.pack(side=tk.LEFT, anchor='n', padx=5, pady=5)
-
+        # Generate reference spectra plots for every species we are interested in
+        self.ref_frame = dict()
+        for species in self.config['species']:
+            species_id = 'ref_spec_{}'.format(species)
+            self.ref_frame[species] = RefPlot(self.ref_spec_frames, self.DOAS, self.config['ref_spec_dir'],
+                                              self.config['ref_fig_size'], self.config['dpi'],
+                                              self.config[species_id],species=species)
+            self.ref_frame[species].frame.pack(side=tk.TOP, anchor='n', padx=5, pady=5)
 
     def exit_app(self):
         """Exit GUI"""
         if messagebox.askokcancel("Quit", "Are you sure you want to quit?"):
+            # Stop widget draw functions
+            self.spec_frame.close_widget()
+            self.doas_frame.close_widget()
+            self.cd_plot.close_widget()
+
+            # Close main window and stop program
             self.parent.destroy()
             sys.exit()
 

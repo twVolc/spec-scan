@@ -32,12 +32,31 @@ def config_parser():
                 config['dpi'] = int(line.replace('dpi=', '').split(' ')[0])
             elif 'font_size_figs=' in line:
                 config['mtplt_font_size'] = int(line.replace('font_size_figs=', '').split(' ')[0])
-            elif 'ref_spec_SO2=' in line:
-                config['ref_spec_SO2'] = line.split("'")[1]
-            elif 'ILS=' in line:
-                config['ILS'] = line.split("'")[1]
             elif 'arduino_COM' in line:
                 config['arduino_COM'] = line.split("'")[1]
+            elif 'ILS=' in line:
+                config['ILS'] = line.split("'")[1]
+
+            # Reference spectra handling
+            elif 'fit_species=' in line:
+                species_str = line.split("'")[1]
+                config['species'] = species_str.split(',')
+            if 'species' in config:
+                for species in config['species']:
+                    species_id = 'ref_spec_{}'.format(species)
+                    if species_id + '=' in line:
+                        # Only add this if there is some length of string between the apostrophes in the config file
+                        filename = line.split("'")[1]
+                        if len(filename) > 0:
+                            config[species_id] = filename
+
+        # Perform check that all anticipated reference spectra have been provided. If not, they are deleted from species
+        # list and a warning is given
+        for species in config['species']:
+            species_id = 'ref_spec_{}'.format(species)
+            if species_id not in config:
+                config['species'].remove(species)
+                print('Warning!! {} reference spectra was requested but not provided. It has been removed from processing'.format(species))
 
     return config
 

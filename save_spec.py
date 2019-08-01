@@ -83,20 +83,30 @@ class SaveSpectra:
             return
 
         # Save file
-        np.savetxt(doas_path, np.transpose([self.doas_worker.wavelengths_cut, self.doas_worker.ref_spec_fit['SO2'],
-                                                 self.doas_worker.abs_spec_cut]),
+        np.savetxt(doas_path, np.transpose([self.doas_worker.wavelengths_cut, self.doas_worker.ref_spec_fit['Total'],
+                                            self.doas_worker.abs_spec_species['Total'],
+                                            self.doas_worker.ref_spec_fit['SO2'],
+                                            self.doas_worker.abs_spec_species['SO2'],
+                                            self.doas_worker.ref_spec_fit['O3'],
+                                            self.doas_worker.abs_spec_species['O3'],
+                                            self.doas_worker.abs_spec_species['residual']]),
                    header='Processed DOAS spectrum\n'
                           'Dark spectrum: {}\nClear spectrum: {}\nPlume spectrum: {}\n'
                           'Shift: {}\nStretch: {}\n'
                           'Stray range [nm]: {}:{}\nFit window [nm]: {}:{}\n'
-                          'Column density [ppm.m]: {}\n'
+                          'Column density SO2 [ppm.m]: {}\n'
+                          'Column density O3 [arb]: {}\n'
                           'STD Error: {}\n'
-                          'Wavelength [nm]\tReference spectrum (fitted)\tAbsorbance spectrum'.format(
+                          'Wavelength [nm]\t'
+                          'Total Reference spectrum (fitted)\tTotal Absorbance spectrum\t'
+                          'SO2 Reference spectrum (fitted)\tSO2 Absorbance spectrum\t'
+                          'O3 Reference spectrum (fitted)\tO3 Absorbance spectrum\tResidual'.format(
                           dark_path, clear_path, plume_path,
                           self.doas_worker.shift, self.doas_worker.stretch,
                           self.doas_worker.start_stray_wave, self.doas_worker.end_stray_wave,
                           self.doas_worker.start_fit_wave, self.doas_worker.end_fit_wave,
-                          self.doas_worker.column_amount, self.doas_worker.std_err))
+                          self.doas_worker.column_density['SO2'], self.doas_worker.column_density['O3'],
+                          self.doas_worker.std_err))
 
     def save_scan(self, save_dir):
         """Saves scan information"""

@@ -121,6 +121,7 @@ class SpectraPlot:
         self.canv.draw()
         self.canv.get_tk_widget().pack(side=tk.TOP, fill=tk.BOTH, expand=True)
 
+        # Instigate canvas drawing worker
         self.__draw_canv__()
 
     def update_dark(self):
@@ -159,6 +160,7 @@ class SpectraPlot:
         self.stray_range.set_width(self.doas_worker.end_stray_wave - self.doas_worker.start_stray_wave)
         self.Q.put(1)
 
+        # Process doas if we can (if it has previously been processed so we know we have all the data we need)
         if self.doas_worker.processed_data:
             self.doas_worker.stray_corrected = False
             self.doas_worker.process_doas()
@@ -233,20 +235,32 @@ class SpectraPlot:
         """Draws canvas periodically"""
         try:
             update = self.Q.get(block=False)
-            self.canv.draw()
+            # print('Got {} from Q'.format(update))
+            if update == 1:
+                self.canv.draw()
+            else:
+                print('Closing canvas drawing')
+                return
         except queue.Empty:
             pass
         self.root.after(refresh_rate, self.__draw_canv__)
+
+    def close_widget(self):
+        """Closes widget cleanly, by stopping __draw_canv__()"""
+        self.Q.put(2)
+        # print('Added to Q')
 
 class DOASPlot:
     """
     Generates a widget containing the DOAS fit plot
     """
-    def __init__(self, root, frame, doas_worker=DOASWorker(), figsize=(10, 3), dpi=100):
+    def __init__(self, root, frame, doas_worker=DOASWorker(), figsize=(10, 3), dpi=100, species='SO2'):
         self.root = root
 
         self.setts = SettingsGUI()
         self.doas_worker = doas_worker
+
+        self.species = species
 
         self.figsize = figsize
         self.dpi = dpi
@@ -289,32 +303,41 @@ class DOASPlot:
         self.save_butt = ttk.Button(self.frame2, text='Save spectra', command=self.save_spectra)
         self.save_butt.pack(side=tk.RIGHT, anchor='e')
 
-        # ------------------------------------------------
-        # FIGURE SETUP
-        # ------------------------------------------------
-        self.fig = plt.Figure(figsize=self.figsize, dpi=self.dpi)
+        # ----------------------------------------------------------------
+        # Tabbed figure setup for all species and residual
+        # ----------------------------------------------------------------
+        # Setup up tab wideget for each species
+        self.tabs = ttk.Notebook(self.frame)
+        self.tabs.bind('<Button-1>', self.__update_tab__)
+        self.species_tabs = dict()
+        self.species_tabs['Total'] = ttk.Frame(self.tabs, borderwidth=2)
+        self.tabs.add(self.species_tabs['Total'], text='Total')
+        for spec in self.species:
+            self.species_tabs[spec] = ttk.Frame(self.tabs, borderwidth=2)
+            self.tabs.add(self.species_tabs[spec], text=spec)
+        self.species_tabs['residual'] = ttk.Frame(self.tabs, borderwidth=2)
+        self.tabs.add(self.species_tabs['residual'], text='residual')
+        self.tabs.pack(side=tk.TOP, fill="both", expand=1)
 
-        self.ax = self.fig.subplots(1, 1)
-        self.ax.set_ylabel('Absorbance')
-        self.ax.set_ylim([-0.2, 0.2])
-        self.ax.set_xlim([self.doas_worker.start_fit_wave, self.doas_worker.end_fit_wave])
-        self.ax.set_xlabel('Wavelength [nm]')
-        self.ax.grid(True)
-        self.plt_colours = ['b', 'r']
-        for i in range(2):
-            self.ax.plot([250, 400], [0, 0], self.plt_colours[i], linewidth=1)
-        self.ax.legend(('Measured', 'Fitted reference'), loc=1, framealpha=1)
-        self.ax.set_title('Column density [ppm.m]: N/A          STD Error: N/A')
-        self.fig.tight_layout()
+        # Generate DOASFigure object for each species
+        self.species_plots = dict()
+        for spec in self.species:
+            self.species_plots[spec] = DOASFigure(self.species_tabs[spec], self.doas_worker, spec,
+                                                  self.figsize, self.dpi)
 
-        self.canv = FigureCanvasTkAgg(self.fig, master=self.frame)
-        self.canv.draw()
-        self.canv.get_tk_widget().pack(side=tk.TOP, fill=tk.BOTH, expand=True)
+        # Generate DOASFigure object for full absorbance
+        self.species_plots['Total'] = DOASFigure(self.species_tabs['Total'], self.doas_worker, 'Total',
+                                                    self.figsize, self.dpi)
 
+        # Generate DOASFigure object for residual
+        self.species_plots['residual'] = DOASFigure(self.species_tabs['residual'], self.doas_worker, 'residual',
+                                                    self.figsize, self.dpi)
+        # Instigate canvas drawing worker
         self.__draw_canv__()
 
     def update_shift(self):
         """Updates DOASWorker shift value for aligning spectra"""
+        # Set shift in DOASWorker object
         self.doas_worker.shift = self.shift.get()
 
         # If we have a processed spectrum we now must update it
@@ -333,37 +356,94 @@ class DOASPlot:
 
     def update_plot(self):
         """Updates doas plot"""
-        # Update plot lines with new data
-        self.ax.lines[0].set_data(self.doas_worker.wavelengths_cut, self.doas_worker.abs_spec_cut)
-        self.ax.lines[1].set_data(self.doas_worker.wavelengths_cut, self.doas_worker.ref_spec_fit['SO2'])
-
-        # Set axis limits
-        self.ax.set_xlim([self.doas_worker.wavelengths_cut[0], self.doas_worker.wavelengths_cut[-1]])
-        ylims = np.amax(np.absolute(self.doas_worker.abs_spec_cut))
-        ylims *= 1.15
-        if ylims == 0:
-            ylims = 0.05
-        self.ax.set_ylim([-ylims, ylims])
-        self.ax.set_title('Column density [ppm.m]: {}          STD Error: {}'.format(
-            self.doas_worker.column_amount, self.doas_worker.std_err))
+        for plot in self.species_plots:
+            self.species_plots[plot].update_plot()
 
         # Draw updates
+        self.Q.put(1)
+
+    def __update_tab__(self, event):
+        """
+        Controls drawing of tab canvas when tab is selected
+        Drawing in this manner reduces lag when playing with a figure, as only the current figure is drawn
+        :return:
+        """
         self.Q.put(1)
 
     def __draw_canv__(self):
         """Draws canvas periodically"""
         try:
             update = self.Q.get(block=False)
-            self.canv.draw()
+            if update == 1:
+                species = self.tabs.tab(self.tabs.select(), "text")
+                self.species_plots[species].canv.draw()
+            else:
+                return
         except queue.Empty:
             pass
         self.root.after(refresh_rate, self.__draw_canv__)
+
+    def close_widget(self):
+        """Closes widget cleanly, by stopping __draw_canv__()"""
+        self.Q.put(2)
 
     def save_spectra(self):
         """Saves processed DOAS spectra"""
         if isinstance(self.acq_obj, AcquisitionFrame):
             print('Saving...')
             self.acq_obj.save_processed_spec()
+
+
+class DOASFigure:
+    """
+    Class for generating a DOAS-style figure with absorbance and reference spectrum fitting
+    """
+    def __init__(self, frame, doas_worker, species, figsize, dpi):
+        self.frame = frame
+        self.doas_worker = doas_worker
+        self.species = species
+        self.figsize = figsize
+        self.dpi = dpi
+        # ------------------------------------------------
+        # FIGURE SETUP
+        # ------------------------------------------------
+        self.fig = plt.Figure(figsize=self.figsize, dpi=self.dpi)
+
+        self.ax = self.fig.subplots(1, 1)
+        self.ax.set_ylabel('Absorbance')
+        self.ax.set_ylim([-0.2, 0.2])
+        self.ax.set_xlim([self.doas_worker.start_fit_wave, self.doas_worker.end_fit_wave])
+        self.ax.set_xlabel('Wavelength [nm]')
+        self.ax.grid(True)
+        self.plt_colours = ['b', 'r']
+        for i in range(2):
+            self.ax.plot([250, 400], [0, 0], self.plt_colours[i], linewidth=1)
+        self.ax.legend(('Measured', 'Fitted reference'), loc=1, framealpha=1)
+        self.ax.set_title('SO2 Column density [ppm.m]: N/A          STD Error: N/A')
+        self.fig.tight_layout()
+
+        self.canv = FigureCanvasTkAgg(self.fig, master=self.frame)
+        self.canv.draw()
+        self.canv.get_tk_widget().pack(side=tk.TOP, fill=tk.BOTH, expand=True)
+
+    def update_plot(self):
+        """Updates doas plot"""
+        # Update plot lines with new data
+        # self.ax.lines[0].set_data(self.doas_worker.wavelengths_cut, self.doas_worker.abs_spec_cut[self.species])
+        self.ax.lines[0].set_data(self.doas_worker.wavelengths_cut, self.doas_worker.abs_spec_species[self.species])
+
+        if self.species is not 'residual':
+            self.ax.lines[1].set_data(self.doas_worker.wavelengths_cut, self.doas_worker.ref_spec_fit[self.species])
+
+        # Set axis limits
+        self.ax.set_xlim([self.doas_worker.wavelengths_cut[0], self.doas_worker.wavelengths_cut[-1]])
+        ylims = np.amax(np.absolute(self.doas_worker.abs_spec_species[self.species]))
+        ylims *= 1.15
+        if ylims == 0:
+            ylims = 0.05
+        self.ax.set_ylim([-ylims, ylims])
+        self.ax.set_title('SO2 Column density [ppm.m]: {}          STD Error: {}'.format(
+            self.doas_worker.column_density['SO2'], self.doas_worker.std_err))
 
 
 class CDPlot:
@@ -466,7 +546,14 @@ class CDPlot:
         """Draws canvas periodically"""
         try:
             update = self.Q.get(block=False)
-            self.canv.draw()
+            if update == 1:
+                self.canv.draw()
+            else:
+                return
         except queue.Empty:
             pass
         self.root.after(refresh_rate, self.__draw_canv__)
+
+    def close_widget(self):
+        """Closes widget cleanly, by stopping __draw_canv__()"""
+        self.Q.put(2)

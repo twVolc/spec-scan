@@ -8,9 +8,10 @@ ref_spec_dir='.\Calibration_files\'  # Path to open initial reference spectrum
 arduino_COM='COM4'   # Arduino serial communication port
 
 # Pre-load settings
+fit_species='SO2,O3'   # Defines fit species to be used - cross-section file must also be provided. Species should be separated by commas within the apostrophes
 ref_spec_SO2='.\Calibration_files\Vandaele (2009) x-section in wavelength.txt'  # Path to SO2 reference spectrum
-ref_spec_O3=''
-ILS='.\Calibration_files\2019-07-03_302nm_ILS.txt'    # Path to ILS file
+ref_spec_O3='.\Calibration_files\Serdyuchenko_O3_223K.txt'  # Path to O3 reference spectrum
+ILS='.\Calibration_files\2019-07-03_302nm_ILS.txt'          # Path to ILS file
 
 
 # Figure settings

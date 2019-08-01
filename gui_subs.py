@@ -18,7 +18,7 @@ import time
 class SettingsGUI:
     """Class to hold some settings of the GUI"""
     def __init__(self):
-        self.version = '1.1'
+        self.version = '1.2'
 
         self.bgColour = "#ccd"
         self.style = ttk.Style()
