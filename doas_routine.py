@@ -1,13 +1,9 @@
 # Main Subroutine which processes images according to the DOAS retrieval method.
 
-# THIS IS TOO MESSY, I NEED TO SEPARATE THE GUI FROM THE DOAS PROCESSING!
-
 import numpy as np
 from scipy import signal
 import os
 import glob
-import tkinter as tk
-from tkinter import filedialog
 import matplotlib.pyplot as plt
 from astropy.convolution import convolve
 import scipy.integrate as integrate

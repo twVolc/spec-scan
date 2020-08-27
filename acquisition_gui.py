@@ -77,6 +77,7 @@ class AcquisitionFrame:
                 print('Could not open port to arduino, please check connection and restart program')
         else:
             self.arduino = None
+            print('No arduino COM port specified')
 
         # Instigates the setup of the GUI
         self.__setup_gui__(frame)

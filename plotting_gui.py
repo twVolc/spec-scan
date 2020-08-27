@@ -374,7 +374,9 @@ class DOASPlot:
         """Draws canvas periodically"""
         try:
             update = self.Q.get(block=False)
+            # print('Got message')
             if update == 1:
+                # Only draw canvas of currently selected tab (save processing power)
                 species = self.tabs.tab(self.tabs.select(), "text")
                 self.species_plots[species].canv.draw()
             else:
@@ -432,7 +434,7 @@ class DOASFigure:
         # self.ax.lines[0].set_data(self.doas_worker.wavelengths_cut, self.doas_worker.abs_spec_cut[self.species])
         self.ax.lines[0].set_data(self.doas_worker.wavelengths_cut, self.doas_worker.abs_spec_species[self.species])
 
-        if self.species is not 'residual':
+        if self.species != 'residual':
             self.ax.lines[1].set_data(self.doas_worker.wavelengths_cut, self.doas_worker.ref_spec_fit[self.species])
 
         # Set axis limits
