@@ -11,8 +11,8 @@ from matplotlib.figure import Figure
 
 from gui_subs import SettingsGUI
 from controllers import SpecCtrl, SpectrometerConnectionError, ScanProperties
-from doas_routine import DOASWorker, ScanProcess
-from save_spec import SaveSpectra
+# from doas_routine import DOASWorker, ScanProcess
+# from save_spec import SaveSpectra
 
 import numpy as np
 from datetime import datetime
@@ -28,7 +28,7 @@ class AcquisitionFrame:
     Frame for controlling acquisition settings and instigating acquisitions
     This class brings together the the DOAS work to control processing and plotting of DOAS too
     """
-    def __init__(self, frame, doas_worker=DOASWorker(), scan_proc=ScanProcess(),
+    def __init__(self, frame, doas_worker=None, scan_proc=None,
                  spec_plot=None, doas_plot=None, cd_plot=None, ard_com=None, save_path='C:\\'):
         self.scan_cont = ScanProperties()
         self.scan_proc = scan_proc
@@ -38,7 +38,7 @@ class AcquisitionFrame:
         self.spec_plot = spec_plot      # Setup SpectraPlot object, used for plotting spectra
         self.doas_plot = doas_plot
         self.cd_plot = cd_plot
-        self.save_obj = SaveSpectra(self.doas_worker, self.scan_proc)
+        self.save_obj = self.doas_worker.save_obj
 
         # PROBABLY SETUP THIS PATH THROUGH A FUNCTION WHICH CREATES A NEW DATE DIRECTORY
         # OR THIS MAY BE SETUP OUTSIDE OF THIS CLASS - BY THE MAIN CLASS

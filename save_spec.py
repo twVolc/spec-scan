@@ -1,6 +1,6 @@
 import numpy as np
 
-from doas_routine import *
+# from doas_routine import *
 from acquisition_gui import *
 from controllers import SpecCtrl
 
@@ -9,7 +9,7 @@ class SaveSpectra:
     """
     Handles all saving of spectra from spectrometer acquisitions and DOAS retrievals
     """
-    def __init__(self, doas=DOASWorker(), scan_proc=ScanProcess(), spec_ctrl=None):
+    def __init__(self, doas, scan_proc, spec_ctrl=None):
         self.doas_worker = doas
         self.scan_proc = scan_proc
         self.spec_ctrl = spec_ctrl
@@ -102,7 +102,7 @@ class SaveSpectra:
                           'SO2 Reference spectrum (fitted)\tSO2 Absorbance spectrum\t'
                           'O3 Reference spectrum (fitted)\tO3 Absorbance spectrum\tResidual'.format(
                           dark_path, clear_path, plume_path,
-                          self.doas_worker.shift, self.doas_worker.stretch,
+                          self.doas_worker.shift_used, self.doas_worker.stretch,
                           self.doas_worker.start_stray_wave, self.doas_worker.end_stray_wave,
                           self.doas_worker.start_fit_wave, self.doas_worker.end_fit_wave,
                           self.doas_worker.column_density['SO2'], self.doas_worker.column_density['O3'],

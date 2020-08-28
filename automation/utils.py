@@ -29,6 +29,31 @@ def save_spectrum(wavelengths, spectrum, filename):
     os.remove(lock)
 
 
+def load_spectrum(filename):
+    """Essentially a wrapper to numpy load function, with added filename check
+    :param  filename:   str     Full path of spectrum to be loaded"""
+
+    # Can load txt file or numpy array
+    if filename.split('.')[-1] == 'txt':
+        try:
+            check_filename(filename, 'txt')
+        except:
+            raise
+        data = np.loadtxt(filename)
+        wavelengths, spectrum = data.T
+
+    else:
+        try:
+            check_filename(filename, SpecSpecs().file_ext.split('.')[-1])
+        except:
+            raise
+        spec_array = np.load(filename)
+        wavelengths = spec_array[0, :]
+        spectrum = spec_array[1, :]
+
+    return wavelengths, spectrum
+
+
 def check_filename(filename, ext):
     """Checks filename to ensure it is as expected
 

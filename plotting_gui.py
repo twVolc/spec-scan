@@ -26,6 +26,7 @@ class SpectraPlot:
         self.setts = SettingsGUI()
         self.doas_worker = doas_worker
         self.doas_plot = doas_plot
+        self.doas_worker.fig_spec = self
 
         self.figsize = figsize
         self.dpi = dpi
@@ -127,7 +128,7 @@ class SpectraPlot:
     def update_dark(self):
         """Update dark plot with new data"""
         self.ax.lines[0].set_data(self.doas_worker.wavelengths, self.doas_worker.dark_spec)
-        self.ax.set_xlim([self.doas_worker.wavelengths[0],self.doas_worker.wavelengths[-1]])
+        self.ax.set_xlim([self.doas_worker.wavelengths[0], self.doas_worker.wavelengths[-1]])
         self.Q.put(1)
 
     def update_clear(self):
@@ -250,6 +251,7 @@ class SpectraPlot:
         self.Q.put(2)
         # print('Added to Q')
 
+
 class DOASPlot:
     """
     Generates a widget containing the DOAS fit plot
@@ -259,6 +261,7 @@ class DOASPlot:
 
         self.setts = SettingsGUI()
         self.doas_worker = doas_worker
+        self.doas_worker.fig_doas = self
 
         self.species = species
 
@@ -452,8 +455,12 @@ class CDPlot:
     """
     Class to plot column densities retrieved from a scan or traverse sequence
     """
-    def __init__(self, root, frame, fig_size=(5,5), dpi=100, scan_proc=ScanProcess()):
+    def __init__(self, root, frame, doas_worker=DOASWorker(), fig_size=(5,5), dpi=100):
         self.root = root
+
+        self.doas_worker = doas_worker
+        self.doas_worker.fig_scan = self
+        self.scan_proc = self.doas_worker.scan_proc
 
         self.Q = queue.Queue()
 
@@ -461,8 +468,6 @@ class CDPlot:
         self.dpi = dpi
 
         self.x_ax_min = 20
-
-        self.scan_proc = scan_proc
 
         self.__setup_gui__(frame)
 

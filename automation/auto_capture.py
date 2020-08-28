@@ -70,7 +70,7 @@ while True:
     spectrometer.get_spec()
 
     # Generate filename
-    filename = spectrometer.generate_filename(time_str, 'Dark')
+    filename = spectrometer.generate_filename(time_str, spectrometer.file_spec_type['dark'])
 
     # Save spectrum
     save_spectrum(spectrometer.wavelengths, spectrometer.spectrum, scan_dir + filename)
@@ -89,7 +89,7 @@ while True:
         spectrometer.get_spec()
 
         # Generate filename
-        filename = spectrometer.generate_filename(time_str, 'Plume')
+        filename = spectrometer.generate_filename(time_str, spectrometer.file_spec_type['meas'])
 
         # Save spectrum
         save_spectrum(spectrometer.wavelengths, spectrometer.spectrum, scan_dir + filename)

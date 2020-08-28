@@ -32,7 +32,7 @@ from doas_routine import DOASWorker, ScanProcess
 from config_parser import config_parser
 from gui_subs import *
 from acquisition_gui import AcquisitionFrame
-from postprocess_gui import PostProcess
+from postprocess_gui import PostProcess, DirectoryWatcherFrame
 from plotting_gui import SpectraPlot, DOASPlot, CDPlot
 from calibration_gui import CalPlot, RefPlot
 
@@ -52,10 +52,10 @@ class PySpec(ttk.Frame):
         self.config = config_parser()
 
         # Initiate DOASWorrker for main DOAS processing
-        self.DOAS = DOASWorker(1, species=self.config['species'])
+        self.DOAS = DOASWorker(routine=2, species=self.config['species'])
 
         # Initiate scan processing object
-        self.scan_proc = ScanProcess()
+        self.scan_proc = self.DOAS.scan_proc
         # ==============================================================================================================
         # GUI SETUP
         # ==============================================================================================================
@@ -107,7 +107,7 @@ class PySpec(ttk.Frame):
         self.spec_frame.frame.pack(side='top', expand=1, anchor='n', fill=tk.X)
         self.doas_frame.frame.pack(side='top', expand=1, anchor='n', fill=tk.X)
 
-        self.cd_plot = CDPlot(self.parent, self.plot_frame, scan_proc=self.scan_proc,
+        self.cd_plot = CDPlot(self.parent, self.plot_frame, doas_worker=self.DOAS,
                               fig_size=self.config['scan_fig_size'], dpi=self.config['dpi'])
         self.cd_plot.frame.pack(side='top', fill=tk.BOTH, expand=1, anchor='nw')
 
@@ -125,7 +125,10 @@ class PySpec(ttk.Frame):
         # Initiate post-process control frame and pack it into GUI
         self.post_process_frame = PostProcess(self.left_main_frame, self.DOAS, self.scan_proc,
                                               self.spec_frame, self.doas_frame, self.cd_plot)
-        self.post_process_frame.frame.pack(side='top', expand=True, anchor='nw', fill=tk.X)
+        self.post_process_frame.frame.pack(side='top', expand=False, anchor='nw', fill=tk.X)
+
+        self.directory_watch_frame = DirectoryWatcherFrame(self.left_main_frame, self.DOAS, self.config['init_dir'])
+        self.directory_watch_frame.frame.pack(side='top', expand=True, anchor='nw', fill=tk.X)
 
         # ==============================================================================================================
         # Calibration work - reference spectrum etc

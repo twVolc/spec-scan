@@ -1,6 +1,10 @@
 # -*- coding: utf-8 -*-
 
-# This file has been modified from Peters' plumetrack directory watcher https://github.com/nonbiostudent/plumetrack
+"""
+ This file has been modified from Peters' plumetrack directory watcher https://github.com/nonbiostudent/plumetrack
+
+ It allows the tracking of a directory to spot new files/directories added to it
+"""
 
 import sys
 import os.path

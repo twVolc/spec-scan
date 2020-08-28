@@ -263,8 +263,8 @@ class PostProcess:
 
         all_files = os.listdir(self.scan_dir)
 
-        dark_files = [f for f in all_files if 'dark.txt' in f]
-        self.scan_files = [f for f in all_files if 'plume.txt' in f or 'clear.txt' in f]     # Includes any clear files in the directory
+        dark_files = [f for f in all_files if 'dark.txt' in f.lower()]
+        self.scan_files = [f for f in all_files if 'plume.txt' in f.lower() or 'clear.txt' in f.lower()]     # Includes any clear files in the directory
 
         # For now just work with one dark spectrum
         if dark_files:
@@ -395,3 +395,72 @@ class PostProcess:
                             self.scan_proc.SO2_flux, self.scan_proc.flux_tons))
         except Exception as e:
             print(e)
+
+
+class DirectoryWatcherFrame:
+    """
+    Class to create widget for watchign a directory and analysing data as it arrives
+    """
+    def __init__(self, frame, doas_worker=DOASWorker(), init_dir='C:\\', generate_frame=True):
+        self.frame = frame
+        self.doas_worker = doas_worker
+        self.init_dir = init_dir
+        self.watching = False
+
+        self.pdx = 5
+        self.pdy = 5
+        self.str_len_max = 30
+
+        if generate_frame:
+            self.generate_frame()
+
+    def generate_frame(self):
+        """Build gui frame"""
+        self.frame = tk.LabelFrame(self.frame, text='Directory watcher', relief=tk.RAISED, borderwidth=5)
+
+        label = ttk.Label(self.frame, text='Watch directory:')
+        self.watch_label = ttk.Label(self.frame, text='N/A', width=25)
+        self.select_butt = ttk.Button(self.frame, text='Select directory', command=self.select_dir)
+
+        row = 0
+        label.grid(row=row, column=0, sticky='e', padx=self.pdx, pady=self.pdy)
+        self.watch_label.grid(row=row, column=1, padx=self.pdx, pady=self.pdy, sticky='nsew')
+        row += 1
+        self.select_butt.grid(row=row, column=1, padx=self.pdx, pady=self.pdy, sticky='nsew')
+        row += 1
+        self.frame.grid_columnconfigure(1, weight=1)
+
+        self.watch_butt = ttk.Button(self.frame, text='Start Watching', command=self.watch_directory)
+        self.watch_butt.grid(row=row, column=0, columnspan=2, sticky='nsew', padx=self.pdx, pady=self.pdy)
+
+    def select_dir(self):
+        """Selects directory to be watched"""
+        watch_path = filedialog.askdirectory(initialdir=self.init_dir, title='Select watch directory')
+        if not watch_path:
+            return
+
+        self.init_dir = watch_path
+
+        # Configure watch path label
+        if len(watch_path) > self.str_len_max:
+            self.watch_label.configure(text='...' + watch_path[-(self.str_len_max - 3):])
+        else:
+            self.watch_label.configure(text=watch_path)
+
+        # Update doas worker to new path
+        self.doas_worker.watch_dir = watch_path
+
+    def watch_directory(self):
+        """Initiates directory watcher to begin processing anythign which enters the directory"""
+        if not self.watching:
+            self.doas_worker.start_continuous_processing()
+            self.watch_butt.configure(text='Stop Watching')
+            self.watching = True
+
+        elif self.watching:
+            self.doas_worker.stop_continuous_processing()
+            self.watch_butt.configure(text='Start Watching')
+            self.watching = False
+
+        else:
+            raise AttributeError('Encountered an unexpected value for watching bool')
