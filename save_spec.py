@@ -82,46 +82,53 @@ class SaveSpectra:
             print('Reference spectrum not fitted, cannot save.')
             return
 
-        # Save file
-        np.savetxt(doas_path, np.transpose([self.doas_worker.wavelengths_cut, self.doas_worker.ref_spec_fit['Total'],
-                                            self.doas_worker.abs_spec_species['Total'],
-                                            self.doas_worker.ref_spec_fit['SO2'],
-                                            self.doas_worker.abs_spec_species['SO2'],
-                                            self.doas_worker.ref_spec_fit['O3'],
-                                            self.doas_worker.abs_spec_species['O3'],
-                                            self.doas_worker.abs_spec_species['residual']]),
-                   header='Processed DOAS spectrum\n'
-                          'Dark spectrum: {}\nClear spectrum: {}\nPlume spectrum: {}\n'
-                          'Shift: {}\nStretch: {}\n'
-                          'Stray range [nm]: {}:{}\nFit window [nm]: {}:{}\n'
-                          'Column density SO2 [ppm.m]: {}\n'
-                          'Column density O3 [arb]: {}\n'
-                          'STD Error: {}\n'
-                          'Wavelength [nm]\t'
-                          'Total Reference spectrum (fitted)\tTotal Absorbance spectrum\t'
-                          'SO2 Reference spectrum (fitted)\tSO2 Absorbance spectrum\t'
-                          'O3 Reference spectrum (fitted)\tO3 Absorbance spectrum\tResidual'.format(
-                          dark_path, clear_path, plume_path,
-                          self.doas_worker.shift_used, self.doas_worker.stretch,
-                          self.doas_worker.start_stray_wave, self.doas_worker.end_stray_wave,
-                          self.doas_worker.start_fit_wave, self.doas_worker.end_fit_wave,
-                          self.doas_worker.column_density['SO2'], self.doas_worker.column_density['O3'],
-                          self.doas_worker.std_err))
+        while True:
+        # Save file - for some reason this randomly throws a permissino error, so keep trying until it saves
+            try:
+                np.savetxt(doas_path, np.transpose([self.doas_worker.wavelengths_cut, self.doas_worker.ref_spec_fit['Total'],
+                                                    self.doas_worker.abs_spec_species['Total'],
+                                                    self.doas_worker.ref_spec_fit['SO2'],
+                                                    self.doas_worker.abs_spec_species['SO2'],
+                                                    self.doas_worker.ref_spec_fit['O3'],
+                                                    self.doas_worker.abs_spec_species['O3'],
+                                                    self.doas_worker.abs_spec_species['residual']]),
+                           header='Processed DOAS spectrum\n'
+                                  'Dark spectrum: {}\nClear spectrum: {}\nPlume spectrum: {}\n'
+                                  'Shift: {}\nStretch: {}\n'
+                                  'Stray range [nm]: {}:{}\nFit window [nm]: {}:{}\n'
+                                  'Column density SO2 [ppm.m]: {}\n'
+                                  'Column density O3 [arb]: {}\n'
+                                  'STD Error: {}\n'
+                                  'Wavelength [nm]\t'
+                                  'Total Reference spectrum (fitted)\tTotal Absorbance spectrum\t'
+                                  'SO2 Reference spectrum (fitted)\tSO2 Absorbance spectrum\t'
+                                  'O3 Reference spectrum (fitted)\tO3 Absorbance spectrum\tResidual'.format(
+                                  dark_path, clear_path, plume_path,
+                                  self.doas_worker.shift_used, self.doas_worker.stretch,
+                                  self.doas_worker.start_stray_wave, self.doas_worker.end_stray_wave,
+                                  self.doas_worker.start_fit_wave, self.doas_worker.end_fit_wave,
+                                  self.doas_worker.column_density['SO2'], self.doas_worker.column_density['O3'],
+                                  self.doas_worker.std_err))
+                break
+            except PermissionError:
+                pass
 
     def save_scan(self, save_dir):
         """Saves scan information"""
-        try:
-            # Save file
-            np.savetxt(save_dir + self.scan_filename, np.transpose([self.scan_proc.scan_angles,
-                                                                    self.scan_proc.column_densities]),
-                       header='Processed scan details\n'
-                              'Plume speed: {}\n'
-                              'Plume distance: {}\n'
-                              'Emission rate [kg/s]: {}\n'
-                              'Emission rate [t/day]: {}\n'
-                              'Scan angle [deg]\tColumn density [ppm.m]'.format(
-                           self.scan_proc.plume_speed, self.scan_proc.plume_distance,
-                           self.scan_proc.SO2_flux, self.scan_proc.flux_tons))
-        except Exception as e:
-            print(e)
+        while True:
+            try:
+                # Save file - keep trying until we don't get an exception
+                np.savetxt(save_dir + self.scan_filename, np.transpose([self.scan_proc.scan_angles,
+                                                                        self.scan_proc.column_densities]),
+                           header='Processed scan details\n'
+                                  'Plume speed: {}\n'
+                                  'Plume distance: {}\n'
+                                  'Emission rate [kg/s]: {}\n'
+                                  'Emission rate [t/day]: {}\n'
+                                  'Scan angle [deg]\tColumn density [ppm.m]'.format(
+                               self.scan_proc.plume_speed, self.scan_proc.plume_distance,
+                               self.scan_proc.SO2_flux, self.scan_proc.flux_tons))
+                break
+            except Exception as e:
+                pass
 

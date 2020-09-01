@@ -11,6 +11,7 @@ from scipy import signal
 import os
 import glob
 import matplotlib.pyplot as plt
+from matplotlib.dates import date2num
 from astropy.convolution import convolve
 import scipy.integrate as integrate
 from scipy.optimize import curve_fit, OptimizeWarning
@@ -41,6 +42,7 @@ class DOASWorker:
 
         self.spec_specs = spec_specs    # Spectrometer specifications
         self.scan_proc = ScanProcess()  # Scanning object
+        self.series = EmissionSeries()  # Emission rate timeseries object
         self.save_obj = SaveSpectra(self, self.scan_proc)   # Save object
 
         # ======================================================================================================================
@@ -143,6 +145,7 @@ class DOASWorker:
         self.fig_spec = None            # plotting_gui.SpectraPlot object
         self.fig_doas = None            # plotting_gui.DOASPlot object
         self.fig_scan = None            # plotting_gui.CDPlot object
+        self.fig_series = None          # plotting_gui.TimeSeriesPlot
 
 
     @property
@@ -255,6 +258,9 @@ class DOASWorker:
     # -------------------------------------------
     def set_doas_filename(self, filename):
         """Organise doas filename for saving purposes"""
+        # Extract filename
+        filename = os.path.split(filename)[-1]
+
         filename = filename.split('.')[0].replace('clear', 'doas')
         filename = filename.split('.')[0].replace('plume', 'doas')  # Filename may contain plume or clear
         doas_filename = filename + '_1.txt'
@@ -461,6 +467,11 @@ class DOASWorker:
         if len(self.spec_dict['dark']) > 0:
             ss_id = self.spec_specs.file_ss.replace('{}', '')
             ss = self.spec_dict['plume'][0].split('_')[self.spec_specs.file_ss_loc].replace(ss_id, '')
+
+            # If filename is not as expected (we don't have the ss flag) we set ss to None. Any dark spectrum from dark_dir
+            # will then be accepted as teh dark spec
+            if ss_id not in ss:
+                ss = None
             self.dark_spec = self.find_dark_spectrum(self.dark_dir, ss)
 
         # Update plots if requested
@@ -482,13 +493,13 @@ class DOASWorker:
         sd['all'] = [f for f in os.listdir(self.spec_dir) if self.spec_specs.file_ext in f or '.txt' in f]
         sd['all'].sort()
         sd['plume'] = [f for f in sd['all']
-                       if self.spec_specs.file_spec_type['meas'] in f]
+                       if self.spec_specs.file_spec_type['meas'].lower() in f.lower()]
         sd['plume'].sort()
         sd['clear'] = [f for f in sd['all']
-                       if self.spec_specs.file_spec_type['clear'] in f]
+                       if self.spec_specs.file_spec_type['clear'].lower() in f.lower()]
         sd['clear'].sort()
         sd['dark'] = [f for f in sd['all']
-                      if self.spec_specs.file_spec_type['dark'] in f]
+                      if self.spec_specs.file_spec_type['dark'].lower() in f.lower()]
         sd['dark'].sort()
         return sd
 
@@ -498,6 +509,18 @@ class DOASWorker:
         passed to function.
         :return: dark_spec
         """
+        # If ss is None, we get the first dark spectrum in the directory
+        if ss is None:
+            # List all dark images in directory
+            dark_list = [f for f in os.listdir(spec_dir)
+                         if self.spec_specs.file_spec_type['dark'].lower() in f.lower()
+                         and (self.spec_specs.file_ext in f or '.txt' in f)]
+            if len(dark_list) > 0:
+                dark_spec = load_spectrum(spec_dir + dark_list[0])[1]
+            else:
+                dark_spec = None
+            return dark_spec
+
         # Ensure ss is a string
         ss = str(ss)
 
@@ -508,7 +531,7 @@ class DOASWorker:
 
         # List all dark images in directory
         dark_list = [f for f in os.listdir(spec_dir)
-                     if self.spec_specs.file_spec_type['dark'] in f and self.spec_specs.file_ext in f]
+                     if self.spec_specs.file_spec_type['dark'].lower() in f.lower() and self.spec_specs.file_ext in f]
 
         # Extract ss from each image and round to 2 significant figures
         ss_str = self.spec_specs.file_ss.replace('{}', '')
@@ -798,6 +821,10 @@ class DOASWorker:
         :param plot: bool               Defines whether plots should be updated
         :return:
         """
+        # Update scan parameters
+        self.scan_proc.plume_distance = self.fig_scan.plume_dist
+        self.scan_proc.plume_speed = self.fig_scan.plume_speed
+
         # Update parameters if requested
         if scan_dir is not None:
             self.spec_dir = scan_dir
@@ -830,6 +857,7 @@ class DOASWorker:
         # Update dark and spectrum, which will remain the same through the scan processing
         self.fig_spec.update_dark()
         self.fig_spec.update_clear()
+        self.fig_scan.clear_plot()
 
         # Loop through plume files and process them
         for plume_file in self.spec_dict['plume']:
@@ -862,7 +890,8 @@ class DOASWorker:
                               'column_density': self.column_density}  # Column density
 
             # Update scan processor
-            self.scan_proc.add_data(processed_dict['scan_angle'], processed_dict['column_density'])
+            self.scan_proc.add_data(processed_dict['scan_angle'], processed_dict['column_density']['SO2'])
+            self.fig_scan.update_plot()
 
             # Put results in doas q to be plotted
             self.q_doas.put(processed_dict)
@@ -876,7 +905,6 @@ class DOASWorker:
 
         # Calculate emission rate
         self.scan_proc.calc_emission_rate()
-        self.fig_scan.update_plot()
         self.fig_scan.update_emission_rate()
 
         # Save scan data
@@ -884,6 +912,9 @@ class DOASWorker:
 
         # Put this emission rate in q with scan dir
         self.q_emission.put([processed_dict['time'], self.scan_proc.SO2_flux])
+        self.series.add_data(processed_dict['time'], self.scan_proc.SO2_flux)
+        self.fig_series.update_plot()
+        self.fig_series.update_emission_rate()
 
     def start_continuous_processing(self):
         """
@@ -894,6 +925,9 @@ class DOASWorker:
         self.process_thread = threading.Thread(target=self._process_scan_loop, args=())
         self.process_thread.daemon = True
         self.process_thread.start()
+
+        # Reset time series
+        self.series.clear_data()
 
         # Setup watcher thread to watch directory and then add new directories to q_scan
         self.scan_dir_watcher = create_dir_watcher(self.watch_dir, True, self.directory_watch_handler)
@@ -950,8 +984,8 @@ class DOASWorker:
         spec_files.sort()
 
         # Extract clear spectra if they exist. If not, the first file is assumed to be the clear spectrum
-        clear_spec = [f for f in spec_files if self.spec_specs.file_spec_type['clear'] + '.npy' in f]
-        plume_spec = [f for f in spec_files if self.spec_specs.file_spec_type['meas'] + '.npy' in f]
+        clear_spec = [f for f in spec_files if self.spec_specs.file_spec_type['clear'].lower() + '.npy' in f.lower()]
+        plume_spec = [f for f in spec_files if self.spec_specs.file_spec_type['meas'].lower() + '.npy' in f.lower()]
 
         # Loop through all files and add them to queue
         for file in clear_spec:
@@ -997,7 +1031,10 @@ class DOASWorker:
 
             # Extract shutter speed
             ss_full_str = filename.split('_')[self.spec_specs.file_ss_loc]
-            ss = int(ss_full_str.replace(ss_str, ''))
+            if ss_str not in ss_full_str:
+                ss = None
+            else:
+                ss = int(ss_full_str.replace(ss_str, ''))
 
             # Find dark spectrum with same shutter speed
             self.dark_spec = self.find_dark_spectrum(self.dark_dir, ss)
@@ -1659,6 +1696,50 @@ class ScanProcess:
         else:
             return None
 
+
+class EmissionSeries:
+    """
+    Holds emission rate timeseries data
+    """
+    def __init__(self):
+        self.times = []     # List of times (not numpy array as times are held as datetime objects)
+        self.emission_rates = np.array([])
+
+    def clear_data(self):
+        """Initialises new arrays"""
+        self.times = []
+        self.emission_rates = np.array([])
+
+    def add_data(self, dat_time, emission_rate):
+        """Adds data"""
+        self.times.append(dat_time)
+        self.emission_rates = np.append(self.emission_rates, emission_rate)
+
+    @property
+    def matplotlib_times(self):
+        return date2num(self.times)
+
+    @property
+    def emission_tons(self):
+        """Returns emission rate in t/day"""
+        if len(self.emission_rates) > 0:
+            return (self.emission_rates/1000) * 60 * 60 * 24
+        else:
+            return None
+
+    @property
+    def mean_emission(self):
+        if len(self.emission_rates) > 0:
+            return np.mean(self.emission_rates)
+        else:
+            return None
+
+    @property
+    def max_emission(self):
+        if len(self.emission_rates) > 0:
+            return np.max(self.emission_rates)
+        else:
+            return None
 
 if __name__ == "__main__":
     doas_process = DOASWorker(2)

@@ -33,7 +33,7 @@ from config_parser import config_parser
 from gui_subs import *
 from acquisition_gui import AcquisitionFrame
 from postprocess_gui import PostProcess, DirectoryWatcherFrame
-from plotting_gui import SpectraPlot, DOASPlot, CDPlot
+from plotting_gui import SpectraPlot, DOASPlot, CDPlot, TimeSeriesPlot
 from calibration_gui import CalPlot, RefPlot
 
 # Suppress some warning messages
@@ -110,6 +110,8 @@ class PySpec(ttk.Frame):
         self.cd_plot = CDPlot(self.parent, self.plot_frame, doas_worker=self.DOAS,
                               fig_size=self.config['scan_fig_size'], dpi=self.config['dpi'])
         self.cd_plot.frame.pack(side='top', fill=tk.BOTH, expand=1, anchor='nw')
+        self.series_plot = TimeSeriesPlot(self.parent, self.plot_frame, doas_worker=self.DOAS, dpi=self.config['dpi'])
+        self.series_plot.frame.pack(side='top', fill=tk.BOTH, expand=1, anchor='nw')
 
         # Generate left side panel of main tab GUI
         self.left_main_frame = ttk.Frame(self.frame_1)

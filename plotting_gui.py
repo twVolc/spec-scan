@@ -4,9 +4,11 @@ import tkinter.ttk as ttk
 from matplotlib import pyplot as plt
 from matplotlib.patches import Rectangle
 from matplotlib.backends.backend_tkagg import FigureCanvasTkAgg
+from matplotlib.dates import date2num, DateFormatter, HourLocator
 
 import numpy as np
 import queue
+import datetime
 
 from gui_subs import SettingsGUI
 from doas_routine import DOASWorker, ScanProcess
@@ -461,6 +463,7 @@ class CDPlot:
         self.doas_worker = doas_worker
         self.doas_worker.fig_scan = self
         self.scan_proc = self.doas_worker.scan_proc
+        self.stds = []  # List of std lines
 
         self.Q = queue.Queue()
 
@@ -480,17 +483,17 @@ class CDPlot:
         self.frame_inputs.pack(side=tk.LEFT, anchor='nw')
 
         label_dist = ttk.Label(self.frame_inputs, text='Plume distance [m]:')
-        self.plume_dist = tk.IntVar()
-        self.plume_dist.set(1000)
-        self.plume_dist_box = ttk.Entry(self.frame_inputs, width=5, textvariable=self.plume_dist)
+        self._plume_dist = tk.IntVar()
+        self.plume_dist = 1000
+        self.plume_dist_box = ttk.Entry(self.frame_inputs, width=5, textvariable=self._plume_dist)
 
         label_dist.grid(row=0, column=0, padx=5, pady=5, sticky='e')
         self.plume_dist_box.grid(row=0, column=1, padx=5, pady=5)
 
         label_speed = ttk.Label(self.frame_inputs, text='Plume speed [m/s]:')
-        self.plume_speed = tk.DoubleVar()
-        self.plume_speed.set(5.0)
-        self.plume_speed_box = ttk.Entry(self.frame_inputs, width=5, textvariable=self.plume_speed)
+        self._plume_speed = tk.DoubleVar()
+        self.plume_speed = 5.0
+        self.plume_speed_box = ttk.Entry(self.frame_inputs, width=5, textvariable=self._plume_speed)
 
         label_speed.grid(row=1, column=0, padx=5, pady=5, sticky='e')
         self.plume_speed_box.grid(row=1, column=1, padx=5, pady=5)
@@ -524,8 +527,20 @@ class CDPlot:
 
         self.__draw_canv__()
 
+    def clear_plot(self):
+        """Clear uncertainties from plot to create blank figure (main line is not cleared as this line is updated
+        rather than redrawn"""
+        num_lines = len(self.stds)
+        for i in range(num_lines):
+            self.stds[i].pop(0).remove()
+
     def update_plot(self):
         self.ax.lines[0].set_data(self.scan_proc.scan_angles, self.scan_proc.column_densities)
+
+        # Add uncertainty
+        self.stds.append(self.ax.plot([self.scan_proc.scan_angles[-1], self.scan_proc.scan_angles[-1]],
+                                    [self.doas_worker.column_density['SO2'] - self.doas_worker.std_err,
+                                    self.doas_worker.column_density['SO2'] + self.doas_worker.std_err], color='0.75'))
 
         # Set x and y limits if we have more than one data point in the array
         if len(self.scan_proc.column_densities) > 1:
@@ -536,7 +551,7 @@ class CDPlot:
             else:
                 ymin *= 1.1
             if ymax == 0:
-                ymax == 2000
+                ymax = 2000
             self.ax.set_ylim([ymin, ymax])
 
             if self.scan_proc.scan_angles[-1] > self.x_ax_min:
@@ -544,10 +559,138 @@ class CDPlot:
 
         self.Q.put(1)
 
+    @property
+    def plume_speed(self):
+        return self._plume_speed.get()
+
+    @plume_speed.setter
+    def plume_speed(self, value):
+        self._plume_speed.set(value)
+
+    @property
+    def plume_dist(self):
+        return self._plume_dist.get()
+
+    @plume_dist.setter
+    def plume_dist(self, value):
+        self._plume_dist.set(value)
+
     def update_emission_rate(self):
         """Updates emisison rate label"""
         self.emission_rate.configure(text='{:.2f}'.format(self.scan_proc.SO2_flux))
         self.emission_rate_td.configure(text='{:.1f}'.format(self.scan_proc.flux_tons))
+
+    def __draw_canv__(self):
+        """Draws canvas periodically"""
+        try:
+            update = self.Q.get(block=False)
+            if update == 1:
+                self.canv.draw()
+            else:
+                return
+        except queue.Empty:
+            pass
+        self.root.after(refresh_rate, self.__draw_canv__)
+
+    def close_widget(self):
+        """Closes widget cleanly, by stopping __draw_canv__()"""
+        self.Q.put(2)
+
+
+class TimeSeriesPlot:
+    """
+    Class to plot column densities retrieved from a scan or traverse sequence
+    """
+    def __init__(self, root, frame, doas_worker=DOASWorker(), fig_size=(10,3), dpi=96):
+        self.root = root
+
+        self.doas_worker = doas_worker
+        self.doas_worker.fig_series = self
+        self.series = self.doas_worker.series
+
+        self.formatter = DateFormatter('%H:%M:%S')
+        self.locator = HourLocator(interval=1)
+
+        self.Q = queue.Queue()
+
+        self.fig_size = fig_size
+        self.dpi = dpi
+
+        self.x_ax_min = 20
+
+        self.__setup_gui__(frame)
+
+    def __setup_gui__(self,frame):
+        """Controls widget setup"""
+        self.frame = ttk.Frame(frame, relief=tk.RAISED, borderwidth=5)
+
+        # INPUT FRAME SETUP
+        self.frame_inputs = ttk.Frame(self.frame)
+        self.frame_inputs.pack(side=tk.LEFT, anchor='nw')
+
+        label = ttk.Label(self.frame_inputs, text='Mean emission rate [kg/s]:').grid(
+            row=2, column=0, padx=5, pady=5, sticky='e')
+        self.emission_rate_mean = ttk.Label(self.frame_inputs, text='N/A')
+        self.emission_rate_mean.grid(row=2, column=1, padx=5, pady=5)
+
+        label = ttk.Label(self.frame_inputs, text='Max. emission rate [kg/s]:').grid(
+            row=3, column=0, padx=5, pady=5, sticky='e')
+        self.emission_rate_max = ttk.Label(self.frame_inputs, text='N/A')
+        self.emission_rate_max.grid(row=3, column=1, padx=5, pady=5)
+
+        # FIGURE SETUP
+        self.fig = plt.Figure(figsize=self.fig_size, dpi=self.dpi)
+        self.ax = self.fig.subplots(1, 1)
+        self.ax.set_ylabel('Emission rate [kg/s]')
+        self.ax.set_xlabel('Time')
+        self.ax.set_ylim([0, 10])
+        start_vals = [date2num(datetime.datetime(2020, 1, 1, 0)), date2num(datetime.datetime(2020, 1, 1, 12))]
+        self.ax.set_xlim(start_vals)
+        self.ax.grid(True)
+
+        self.ax.plot_date(start_vals, [0, 0], fmt='bo-', xdate=True)
+        self.ax.xaxis.set_major_locator(self.locator)
+        self.ax.xaxis.set_major_formatter(self.formatter)
+        self.ax.xaxis.set_tick_params(rotation=30, labelsize=10)
+
+        self.fig.tight_layout()
+
+        self.canv = FigureCanvasTkAgg(self.fig, master=self.frame)
+        self.canv.draw()
+        self.canv.get_tk_widget().pack(expand=True, anchor='ne')
+
+        self.__draw_canv__()
+
+    def update_emission_rate(self):
+        """Updates emisison rate label"""
+        self.emission_rate_mean.configure(text='{:.2f}'.format(self.series.mean_emission))
+        self.emission_rate_max.configure(text='{:.1f}'.format(self.series.max_emission))
+
+    def update_plot(self):
+        self.ax.lines[0].set_data(self.series.matplotlib_times, self.series.emission_rates)
+
+        # Set x and y limits if we have more than one data point in the array
+        if len(self.series.emission_rates) > 0:
+            ymax = np.amax(self.series.emission_rates) * 1.15
+            ymin = np.amin(self.series.emission_rates)
+            if ymin > 0:
+                ymin = 0
+            else:
+                ymin *= 1.1
+            if ymax == 0:
+                ymax = 10
+            self.ax.set_ylim([ymin, ymax])
+
+            if len(self.series.emission_rates) > 1:
+                time_delta = datetime.timedelta(minutes=30)
+                self.ax.set_xlim([self.series.matplotlib_times[0] - time_delta,
+                                  date2num(self.series.times[-1] + time_delta)])
+            else:
+                time_delta = datetime.timedelta(hours=1)
+                xlims = [date2num(self.series.times[0] - time_delta), date2num(self.series.times[0] + time_delta)]
+                self.ax.set_xlim(xlims)
+
+        self.Q.put(1)
 
     def __draw_canv__(self):
         """Draws canvas periodically"""

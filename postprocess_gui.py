@@ -279,8 +279,8 @@ class PostProcess:
 
     def __update_scan_params__(self):
         """Updates scan paramters"""
-        self.scan_proc.plume_speed = self.cd_plot.plume_speed.get()
-        self.scan_proc.plume_distance = self.cd_plot.plume_dist.get()
+        self.scan_proc.plume_speed = self.cd_plot.plume_speed
+        self.scan_proc.plume_distance = self.cd_plot.plume_dist
 
     def process_doas(self):
         """Perform doas retrieval on loaded data"""
@@ -302,6 +302,8 @@ class PostProcess:
         self.scan_proc.scan_angles = np.array([])
         self.scan_proc.column_densities = np.array([])
         scan_angle = 0
+
+        self.cd_plot.clear_plot()
 
         # Update clear again, just in case other clear files have been loaded
         self.update_clear_combo(0)
