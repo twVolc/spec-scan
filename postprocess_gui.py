@@ -19,6 +19,7 @@ import numpy as np
 from datetime import datetime
 import os
 import time
+from PIL import Image, ImageTk
 
 class PostProcess:
     """
@@ -413,6 +414,10 @@ class DirectoryWatcherFrame:
         self.pdy = 5
         self.str_len_max = 30
 
+        self.img_size = (40, 40)
+        self.img_on = ImageTk.PhotoImage(Image.open('./icons/green-led.png').resize(self.img_size, Image.ANTIALIAS))
+        self.img_off = ImageTk.PhotoImage(Image.open('./icons/red-led.png').resize(self.img_size, Image.ANTIALIAS))
+
         if generate_frame:
             self.generate_frame()
 
@@ -429,7 +434,12 @@ class DirectoryWatcherFrame:
         self.watch_label.grid(row=row, column=1, padx=self.pdx, pady=self.pdy, sticky='nsew')
         row += 1
         self.select_butt.grid(row=row, column=1, padx=self.pdx, pady=self.pdy, sticky='nsew')
-        row += 1
+        self.indicator = tk.Canvas(self.frame, width=self.img_size[0], height=self.img_size[1],
+                                   bd=0, highlightthickness=0)
+        self.indicator.create_image(0, 0, image=self.img_off, anchor='nw', tags='IMG')
+        self.indicator.grid(row=row, column=0, rowspan=2, sticky='e')
+        row += 2
+
         self.frame.grid_columnconfigure(1, weight=1)
 
         self.watch_butt = ttk.Button(self.frame, text='Start Watching', command=self.watch_directory)
@@ -458,11 +468,16 @@ class DirectoryWatcherFrame:
             self.doas_worker.start_continuous_processing()
             self.watch_butt.configure(text='Stop Watching')
             self.watching = True
+            self.indicator.delete('IMG')
+            self.indicator.create_image(0, 0, image=self.img_on, anchor='nw', tags='IMG')
+
 
         elif self.watching:
             self.doas_worker.stop_continuous_processing()
             self.watch_butt.configure(text='Start Watching')
             self.watching = False
+            self.indicator.delete('IMG')
+            self.indicator.create_image(0, 0, image=self.img_off, anchor='nw', tags='IMG')
 
         else:
             raise AttributeError('Encountered an unexpected value for watching bool')
