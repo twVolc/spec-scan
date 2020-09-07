@@ -137,6 +137,7 @@ class DOASWorker:
         self._dark_dir = None
         self.dark_dir = dark_dir        # Directory where dark images are stored
         self.spec_dir = spec_dir        # Directory where plume spectra are stored
+        self.date_dir = None            # Directory containing scan subdirectories. Should be date in format YYYY-MM-DD
         self.watch_dir = None           # Directory to watch, for automated program
         self.processed_dirs = []        # List of processed scan directories - to ensure we don't process again
         self.spec_dict = {}             # Dictionary containing all spectrum files from current spec_dir
@@ -930,6 +931,7 @@ class DOASWorker:
         self.series.clear_data()
 
         # Setup watcher thread to watch directory and then add new directories to q_scan
+        # Setup directory watcher. recursive=True, to watch subdirectories
         self.scan_dir_watcher = create_dir_watcher(self.watch_dir, True, self.directory_watch_handler)
         self.scan_dir_watcher.start()
 
@@ -940,11 +942,23 @@ class DOASWorker:
 
     def directory_watch_handler(self, pathname, t):
         """Controls the watching of a directory"""
-        # Setup directory watcher. recursive=True, to watch subdirectories
+        # Separate the filename and pathname
         pathname, filename = os.path.split(pathname)
 
         # Only process this directory once the scan_complete file is present
         if filename == self.spec_specs.scan_complete:
+            # Extract date directory
+            date_path = os.path.split(pathname)[0]
+            date_dir = os.path.split(date_path)[-1]
+
+            # If this is data from a new day we must reset data
+            if date_dir != self.date_dir:
+                # Save time series for this day
+                self.series.save_series(date_path, self.scan_proc.plume_distance, self.scan_proc.plume_speed)
+
+                # Clear time series data
+                self.series.clear_data()
+
             # Extract directory from full path
             scan_dir = pathname + '/'
 
@@ -966,8 +980,6 @@ class DOASWorker:
 
             # Process scan
             self.process_scan(scan_dir=scan_dir, plot=False)
-
-            # TODO Update emission rate time series here?
 
     def start_processing_threadless(self):
         """
@@ -1702,6 +1714,8 @@ class EmissionSeries:
     Holds emission rate timeseries data
     """
     def __init__(self):
+        self.datetime_fmt ='%Y-%m-%d\t%H%M%S'
+        self.filename = 'emission_series.txt'
         self.times = []     # List of times (not numpy array as times are held as datetime objects)
         self.emission_rates = np.array([])
 
@@ -1718,6 +1732,10 @@ class EmissionSeries:
     @property
     def matplotlib_times(self):
         return date2num(self.times)
+
+    @property
+    def str_times(self):
+        return [d.strftime(self.datetime_fmt) for d in self.times]
 
     @property
     def emission_tons(self):
@@ -1740,6 +1758,27 @@ class EmissionSeries:
             return np.max(self.emission_rates)
         else:
             return None
+
+    def save_series(self, pathname, plume_distance, plume_speed):
+        """
+        Saves times series data
+        :param pathname:    str     Path to save file directory
+        :return:
+        """
+        # Create full path
+        pathname = os.path.join(pathname, self.filename)
+
+        # Sometimes encounter an exception when trying to save, issue with permission which seems random, so keep trying
+        # to save until we are successful
+        while True:
+            try:
+                np.savetxt(pathname, np.transpose([self.str_times, self.emission_rates]),
+                           header='plume_distance={}\n'
+                                  'plume_speed={}\n'
+                                  'Date\tTime\tEmission rate [kg/s]'.format(plume_distance, plume_speed))
+                break
+            except Exception as e:
+                pass
 
 if __name__ == "__main__":
     doas_process = DOASWorker(2)
