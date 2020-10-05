@@ -2,7 +2,7 @@
 # This config file is whitespace sensitive on each configuration line, and thus format should be strictly maintained
 # e.g. do not add new spaces after commas as this may prevent the file from being read correctly
 
-init_dir='C:\Users\tw9616\Documents\PostDoc\Scanning Spectrometer\SpecScan\Spectra\'       # Path to where spectra are saved initially
+init_dir='.\Spectra\'       # Path to where spectra are saved initially
 ref_spec_dir='.\Calibration_files\'  # Path to open initial reference spectrum
 
 arduino_COM='COM3'   # Arduino serial communication port

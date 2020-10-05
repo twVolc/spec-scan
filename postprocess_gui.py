@@ -425,11 +425,18 @@ class DirectoryWatcherFrame:
         """Build gui frame"""
         self.frame = tk.LabelFrame(self.frame, text='Directory watcher', relief=tk.RAISED, borderwidth=5)
 
+        row = 0
+
+        # Define whether to get plume parameters from file
+        self._auto_plume_params = tk.IntVar()
+        check = ttk.Checkbutton(self.frame, text='Auto-read plume parameters', variable=self._auto_plume_params,
+                                command=self.update_param)
+        check.grid(row=row, column=0, columnspan=2, sticky='w', padx=self.pdx, pady=self.pdy)
+
         label = ttk.Label(self.frame, text='Watch directory:')
         self.watch_label = ttk.Label(self.frame, text='N/A', width=25)
         self.select_butt = ttk.Button(self.frame, text='Select directory', command=self.select_dir)
-
-        row = 0
+        row += 1
         label.grid(row=row, column=0, sticky='e', padx=self.pdx, pady=self.pdy)
         self.watch_label.grid(row=row, column=1, padx=self.pdx, pady=self.pdy, sticky='nsew')
         row += 1
@@ -481,3 +488,11 @@ class DirectoryWatcherFrame:
 
         else:
             raise AttributeError('Encountered an unexpected value for watching bool')
+
+    def update_param(self):
+        """Updates doas_worker parameter for auto plume parameter loading from a text file"""
+        self.doas_worker.auto_plume_params = self.auto_plume_params
+
+    @property
+    def auto_plume_params(self):
+        return bool(self._auto_plume_params.get())

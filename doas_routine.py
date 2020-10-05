@@ -93,6 +93,7 @@ class DOASWorker:
         self.ILS_wavelengths = None     # Wavelengths for ILS
         self._ILS = None                 # Instrument line shape (will be a numpy array)
         self.processed_data = False     # Bool to define if object has processed DOAS yet - will become true once process_doas() is run
+        self.auto_plume_params = False
 
         self.poly_order = 2  # Order of polynomial used to fit residual
         (self.filt_B, self.filt_A) = signal.butter(10, 0.065, btype='highpass')
@@ -589,6 +590,25 @@ class DOASWorker:
                    header='Raw in-plume spectrum\n'
                           '-Not dark-corrected\nWavelength [nm]\tIntensity [DN]')
 
+    def load_plume_params(self):
+        """Loads plume speed and plume distance parameters from file (for automated processing)"""
+        # Initialise parameters in case they don't exist in the file
+        plume_speed = None
+        plume_distance = None
+
+        # Plume file must be located in the scanning directory
+        pathname = self.spec_dir + self.spec_specs.plume_params_file
+
+        # Loop through file and extract plume speed and distance information
+        with open(pathname, 'r') as f:
+            for line in f:
+                if self.spec_specs.plume_speed_id in line:
+                    plume_speed = float(line.split(self.spec_specs.plume_speed_id)[1].split('\n')[0])
+                elif self.spec_specs.plume_dist_id in line:
+                    plume_distance = float(line.split(self.spec_specs.plume_distance_id)[1].split('\n')[0])
+
+        return plume_speed, plume_distance
+
     @staticmethod
     def doas_fit(ref_spec, *fit_params):
         """
@@ -822,19 +842,26 @@ class DOASWorker:
         :param plot: bool               Defines whether plots should be updated
         :return:
         """
-        # Update scan parameters
-        self.scan_proc.plume_distance = self.fig_scan.plume_dist
-        self.scan_proc.plume_speed = self.fig_scan.plume_speed
-
         # Update parameters if requested
         if scan_dir is not None:
             self.spec_dir = scan_dir
 
-        if plume_speed is not None:
-            self.scan_proc.plume_speed = plume_speed
+        # If auto plume params are set then we load them
+        if self.auto_plume_params:
+            self.scan_proc.plume_speed, self.scan_proc.plume_distance = self.load_plume_params()
+            self.fig_scan.plume_speed = self.scan_proc.plume_speed
+            self.fig_scan.plume_dist = self.scan_proc.plume_distance
 
-        if plume_distance is not None:
-            self.scan_proc.plume_distance = plume_distance
+        else:
+            # Update scan parameters
+            self.scan_proc.plume_distance = self.fig_scan.plume_dist
+            self.scan_proc.plume_speed = self.fig_scan.plume_speed
+
+            if plume_speed is not None:
+                self.scan_proc.plume_speed = plume_speed
+
+            if plume_distance is not None:
+                self.scan_proc.plume_distance = plume_distance
 
         # Dark spectrum should be held in same directory
         self.dark_dir = self.spec_dir

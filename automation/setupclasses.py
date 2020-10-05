@@ -47,6 +47,9 @@ class SpecSpecs:
         self.file_spec_type = {'meas': 'Plume', 'dark': 'Dark', 'cal': 'ppmm', 'clear': 'Clear'}
         self.file_datestr = "%Y-%m-%dT%H%M%S"                   # Date/time format spec in filename
         self.file_datestr_loc = 0
+        self.plume_params_file = 'plume_params.txt'
+        self.plume_speed_id = 'plume_speed='
+        self.plume_dist_id = 'plume_distance='
 
         # File which flags that a scan is complete. The file will be empty, just its presence is required
         self.scan_complete = 'complete.txt'
