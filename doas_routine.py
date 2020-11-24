@@ -605,7 +605,7 @@ class DOASWorker:
                 if self.spec_specs.plume_speed_id in line:
                     plume_speed = float(line.split(self.spec_specs.plume_speed_id)[1].split('\n')[0])
                 elif self.spec_specs.plume_dist_id in line:
-                    plume_distance = float(line.split(self.spec_specs.plume_distance_id)[1].split('\n')[0])
+                    plume_distance = float(line.split(self.spec_specs.plume_dist_id)[1].split('\n')[0])
 
         return plume_speed, plume_distance
 
@@ -846,12 +846,25 @@ class DOASWorker:
         if scan_dir is not None:
             self.spec_dir = scan_dir
 
-        # If auto plume params are set then we load them
+        # If auto plume params are set then we attempt to load them
         if self.auto_plume_params:
-            self.scan_proc.plume_speed, self.scan_proc.plume_distance = self.load_plume_params()
-            self.fig_scan.plume_speed = self.scan_proc.plume_speed
-            self.fig_scan.plume_dist = self.scan_proc.plume_distance
-
+            try:
+                self.scan_proc.plume_speed, self.scan_proc.plume_distance = self.load_plume_params()
+                # If the values after attempting to load from file are None, then we must take the values from the
+                # GUI. Otherwise we use the loaded values.
+                if self.scan_proc.plume_speed is None:
+                    self.scan_proc.plume_speed = self.fig_scan.plume_speed
+                else:
+                    self.fig_scan.plume_speed = self.scan_proc.plume_speed
+                if self.scan_proc.plume_distance is None:
+                    self.scan_proc.plume_distance = self.fig_scan.plume_dist
+                else:
+                    self.fig_scan.plume_dist = self.scan_proc.plume_distance
+            # If an exception is raised when trying to load from file, we take the values from the GUI
+            except BaseException:
+                # Update scan parameters
+                self.scan_proc.plume_distance = self.fig_scan.plume_dist
+                self.scan_proc.plume_speed = self.fig_scan.plume_speed
         else:
             # Update scan parameters
             self.scan_proc.plume_distance = self.fig_scan.plume_dist

@@ -429,6 +429,8 @@ class DirectoryWatcherFrame:
 
         # Define whether to get plume parameters from file
         self._auto_plume_params = tk.IntVar()
+        self.auto_plume_params = 1
+        self.update_param()
         check = ttk.Checkbutton(self.frame, text='Auto-read plume parameters', variable=self._auto_plume_params,
                                 command=self.update_param)
         check.grid(row=row, column=0, columnspan=2, sticky='w', padx=self.pdx, pady=self.pdy)
@@ -496,3 +498,7 @@ class DirectoryWatcherFrame:
     @property
     def auto_plume_params(self):
         return bool(self._auto_plume_params.get())
+
+    @auto_plume_params.setter
+    def auto_plume_params(self, value):
+        self._auto_plume_params.set(value)
