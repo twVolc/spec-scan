@@ -19,6 +19,7 @@ import warnings
 import threading
 import queue
 from tkinter import filedialog
+from tkinter import messagebox
 import datetime
 import copy
 
@@ -972,6 +973,10 @@ class DOASWorker:
 
         # Setup watcher thread to watch directory and then add new directories to q_scan
         # Setup directory watcher. recursive=True, to watch subdirectories
+        if self.watch_dir is None:
+            messagebox.showerror('No directory selected',
+                                 'Please select a directory to watch before attempting to start the directory watcher')
+            return
         self.scan_dir_watcher = create_dir_watcher(self.watch_dir, True, self.directory_watch_handler)
         self.scan_dir_watcher.start()
 

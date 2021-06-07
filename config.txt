@@ -5,7 +5,7 @@
 init_dir='.\Spectra\'       # Path to where spectra are saved initially
 ref_spec_dir='.\Calibration_files\'  # Path to open initial reference spectrum
 
-arduino_COM='COM3'   # Arduino serial communication port
+arduino_COM='COM5'   # Arduino serial communication port
 
 # Pre-load settings
 fit_species='SO2,O3'   # Defines fit species to be used - cross-section file must also be provided. Species should be separated by commas within the apostrophes

@@ -240,7 +240,6 @@ class AcquisitionFrame:
             self.arduino.write(self.scan_cont.scan_fwd)
             reply = self.arduino.read()
 
-
     def clear_capture(self):
         """Controls clear spectrum capture"""
         if not self._check_connection():
