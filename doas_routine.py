@@ -45,7 +45,7 @@ class DOASWorker:
         self.scan_proc = ScanProcess()  # Scanning object
         self.series = EmissionSeries()  # Emission rate timeseries object
         self.save_obj = SaveSpectra(self, self.scan_proc)   # Save object
-
+        self.ss_str = self.spec_specs.file_ss.replace('{}', '')
         # ======================================================================================================================
         # Initial Definitions
         # ======================================================================================================================
@@ -123,6 +123,7 @@ class DOASWorker:
         self.stray_corrected_plume = False    # Bool defining if all necessary spectra have been stray light corrected
 
         self.have_dark = False  # Used to define if a dark image is loaded.
+        self.use_dark_dir = 0   # If true, a directory is used to hunt for dark spectra with correct shutter speed
         self.cal_dark_corr = False  # Tells us if the calibration image has been dark subtracted
         self.clear_dark_corr = False  # Tells us if the clear image has been dark subtracted
         self.plume_dark_corr = False  # Tells us if the plume image has been dark subtracted
@@ -506,6 +507,19 @@ class DOASWorker:
         sd['dark'].sort()
         return sd
 
+    def get_ss_from_filename(self, filename):
+        """
+        Extracts shutter speeds from filename
+        :param filename:
+        :return ss: str Shutter speed
+        """
+        ss_full_str = filename.split('_')[self.spec_specs.file_ss_loc]
+        if self.ss_str not in ss_full_str:
+            ss = None
+        else:
+            ss = int(ss_full_str.replace(self.ss_str, ''))
+        return ss
+
     def find_dark_spectrum(self, spec_dir, ss):
         """
         Searches for suitable dark spectrum in designated directory by finding one with the same shutter speed as
@@ -537,8 +551,7 @@ class DOASWorker:
                      if self.spec_specs.file_spec_type['dark'].lower() in f.lower() and self.spec_specs.file_ext in f]
 
         # Extract ss from each image and round to 2 significant figures
-        ss_str = self.spec_specs.file_ss.replace('{}', '')
-        ss_list = [int(f.split('_')[self.spec_specs.file_ss_loc].replace(ss_str, '')) for f in dark_list]
+        ss_list = [int(f.split('_')[self.spec_specs.file_ss_loc].replace(self.ss_str, '')) for f in dark_list]
 
         ss_idx = [i for i, x in enumerate(ss_list) if x == int(ss)]
         ss_spectra = [dark_list[i] for i in ss_idx]
@@ -878,7 +891,8 @@ class DOASWorker:
                 self.scan_proc.plume_distance = plume_distance
 
         # Dark spectrum should be held in same directory
-        self.dark_dir = self.spec_dir
+        if not self.use_dark_dir:
+            self.dark_dir = self.spec_dir
 
         # Create directory to save processed data
         self.save_path = self.spec_dir + 'Processing_1/'
@@ -908,6 +922,16 @@ class DOASWorker:
 
             # Extract datetime object of spectrum from filename
             spec_time = self.get_spec_time(plume_file)
+
+            # ----------------------------------------------------------------------
+            # USING DARK DIRECTORY UPDATES
+            # Extract shutter speed
+            if self.use_dark_dir:
+                filename = os.path.split(pathname)[-1]
+                ss = self.get_ss_from_filename(filename)
+                # Find dark spectrum with same shutter speed
+                self.dark_spec = self.find_dark_spectrum(self.dark_dir, ss)
+            # ---------------------------------------------------------------------
 
             # Load spectrum and update figure
             self.wavelengths, self.plume_spec_raw = load_spectrum(pathname)
@@ -1069,9 +1093,6 @@ class DOASWorker:
         Main process loop for doas
         :return:
         """
-        # Setup which we don't need to repeat once in the loop (optimising the code a little)
-        ss_str = self.spec_specs.file_ss.replace('{}', '')
-
         first_spec = True       # First spectrum is used as clear spectrum
 
         while True:
@@ -1088,10 +1109,10 @@ class DOASWorker:
 
             # Extract shutter speed
             ss_full_str = filename.split('_')[self.spec_specs.file_ss_loc]
-            if ss_str not in ss_full_str:
+            if self.ss_str not in ss_full_str:
                 ss = None
             else:
-                ss = int(ss_full_str.replace(ss_str, ''))
+                ss = int(ss_full_str.replace(self.ss_str, ''))
 
             # Find dark spectrum with same shutter speed
             self.dark_spec = self.find_dark_spectrum(self.dark_dir, ss)

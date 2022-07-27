@@ -533,6 +533,7 @@ class CDPlot:
         num_lines = len(self.stds)
         for i in range(num_lines):
             self.stds[i].pop(0).remove()
+        self.stds = []  # Reset list
 
     def update_plot(self):
         self.ax.lines[0].set_data(self.scan_proc.scan_angles, self.scan_proc.column_densities)

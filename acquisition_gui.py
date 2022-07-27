@@ -409,6 +409,9 @@ class AcquisitionFrame:
                 idx += 1
             os.mkdir(self.scan_dir)
 
+            # Clear any previous plots of emissions rates
+            self.cd_plot.clear_plot()
+
             # Clear scan data so that fresh arrays are present
             self.scan_proc.clear_data()
 
@@ -481,8 +484,8 @@ class AcquisitionFrame:
 
     def __update_scan_params__(self):
         """Updates scan paramters"""
-        self.scan_proc.plume_speed = self.cd_plot.plume_speed.get()
-        self.scan_proc.plume_distance = self.cd_plot.plume_dist.get()
+        self.scan_proc.plume_speed = self.cd_plot.plume_speed
+        self.scan_proc.plume_distance = self.cd_plot.plume_dist
 
     def _check_connection(self):
         """Checks spectrometer connection"""

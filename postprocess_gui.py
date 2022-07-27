@@ -16,6 +16,7 @@ from doas_routine import DOASWorker, ScanProcess
 from save_spec import SaveSpectra
 
 import numpy as np
+import pandas as pd
 from datetime import datetime
 import os
 import time
@@ -38,6 +39,12 @@ class PostProcess:
         self.str_len_max = 30
         self.pdx = 5
         self.pdy = 5
+
+        self.file_datestr = "%Y-%m-%dT%H%M%S"
+        self.results = {'time':[],
+                        'column_density':[],
+                        'fit_err':[],
+                        'ldf': []}
 
         self.init_dir = init_dir    # Directory to begin filedialog prompts
         self.save_path = init_dir   # Directory to save processed date to
@@ -107,10 +114,27 @@ class PostProcess:
         self.batch_check.grid(row=row, column=0, padx=self.pdx, pady=self.pdy, sticky='w')
         row += 1
 
+        self.use_dark_dir = tk.IntVar()
+        self.use_dark_dir.set(1)
+        self.update_dark_dir_use()  # make sure gui and doas_worker are in sync
+        self.dark_dir_check = ttk.Checkbutton(self.scan_frame, text='Use dark directory', variable=self.use_dark_dir,
+                                              command=self.update_dark_dir_use)
+        self.dark_dir_check.grid(row=row, column=0, padx=self.pdx, pady=self.pdy, sticky='w')
+        row += 1
+
+        self.dark_dir = 'N/A'
+        label = ttk.Label(self.scan_frame, text='Dark directory:')
+        self.dark_dir_label = ttk.Label(self.scan_frame, text=self.dark_dir, width=25)
+        self.load_dark_dir_butt = ttk.Button(self.scan_frame, text='Load directory', command=self.load_dark_dir)
+        label.grid(row=row, column=0, sticky='e', padx=self.pdx, pady=self.pdy)
+        self.dark_dir_label.grid(row=row, column=1, padx=self.pdx, pady=self.pdy)
+        row += 1
+        self.load_dark_dir_butt.grid(row=row, column=1, padx=self.pdx, pady=self.pdy, sticky='nsew')
+        row += 1
+
         label = ttk.Label(self.scan_frame, text='Scan directory:')
         self.scan_label = ttk.Label(self.scan_frame, text='N/A', width=25)
         self.load_scan_butt = ttk.Button(self.scan_frame, text='Load Scan', command=self.load_scan)
-
         label.grid(row=row, column=0, sticky='e', padx=self.pdx, pady=self.pdy)
         self.scan_label.grid(row=row, column=1, padx=self.pdx, pady=self.pdy)
         row += 1
@@ -128,7 +152,12 @@ class PostProcess:
         label.grid(row=row, column=0, padx=self.pdx, pady=self.pdy)
         self.clear_spec_select.grid(row=row, column=1, padx=self.pdx, pady=self.pdy)
 
-
+    def reset_results(self):
+        """Resets results for saving in pycam format"""
+        self.results = {'time': [],
+                        'column_density': [],
+                        'fit_err': [],
+                        'ldf': []}
 
     def select_dark(self):
         """Load dark spectrum"""
@@ -152,8 +181,16 @@ class PostProcess:
     def load_dark(self):
         """Load dark spectrum and update plots"""
         # Extract data
-        data = np.loadtxt(self.dark_path)
-        self.doas_worker.wavelengths, self.doas_worker.dark_spec = data.T
+        if self.dark_path[-4:] == '.txt':
+            data = np.loadtxt(self.dark_path)
+            self.doas_worker.wavelengths, self.doas_worker.dark_spec = data.T
+        elif self.dark_path[-4:] == '.npy':
+            data = np.load(self.dark_path)
+            self.doas_worker.wavelengths = data[0, :]
+            self.doas_worker.dark_spec = data[1, :]
+        else:
+            print('Unrecognised file type for loading dark spectrum')
+            return
 
         # Update dark plot
         self.spec_plot.update_dark()
@@ -181,8 +218,16 @@ class PostProcess:
         """Updates clear spectrum by loading data and updating plots (used by a few functions)"""
         # Extract data
         if os.path.exists(self.clear_path):
-            data = np.loadtxt(self.clear_path)
-            self.doas_worker.wavelengths, self.doas_worker.clear_spec_raw = data.T
+            if self.clear_path[-4:] == '.txt':
+                data = np.loadtxt(self.clear_path)
+                self.doas_worker.wavelengths, self.doas_worker.clear_spec_raw = data.T
+            elif self.clear_path[-4:] == '.npy':
+                data = np.load(self.clear_path)
+                self.doas_worker.wavelengths = data[0, :]
+                self.doas_worker.clear_spec_raw = data[1, :]
+            else:
+                print('Unrecognised file type for loading clear spectrum')
+                return
 
             # Update dark plot
             self.spec_plot.update_clear()
@@ -224,11 +269,26 @@ class PostProcess:
     def load_plume(self, save=True):
         """Loads in plume spectrum and updates plot. Also tries to process the data"""
         # Extract data
-        data = np.loadtxt(self.plume_path)
-        self.doas_worker.wavelengths, self.doas_worker.plume_spec_raw = data.T
+        if self.plume_path[-4:] == '.txt.':
+            data = np.loadtxt(self.plume_path)
+            self.doas_worker.wavelengths, self.doas_worker.plume_spec_raw = data.T
+        elif self.plume_path[-4:] == '.npy':
+            data = np.load(self.plume_path)
+            self.doas_worker.wavelengths = data[0, :]
+            self.doas_worker.plume_spec_raw = data[1, :]
+        else:
+            print('Unrecognised file type for loading plume spectrum')
+            return
 
         # Update dark plot
         self.spec_plot.update_plume()
+
+        # Get dark spectrum
+        if self.doas_worker.use_dark_dir:
+            filename = os.path.split(self.plume_path)[-1]
+            ss = self.doas_worker.get_ss_from_filename(filename)
+            self.doas_worker.dark_spec = self.doas_worker.find_dark_spectrum(self.doas_worker.dark_dir, ss)
+            self.spec_plot.update_dark()
 
         # Try processing data
         self.doas_worker.process_doas()
@@ -240,6 +300,51 @@ class PostProcess:
                 self.set_doas_filename(self.plume_path.rsplit('/')[-1])
                 self.save_obj.save_processed_spec(self.dark_path, self.clear_path, self.plume_path, self.doas_path)
 
+    def get_spec_time(self, filename):
+        """
+        Gets time from filename and converts it to datetime object
+        :param filename:
+        :return spec_time:
+        """
+        # Make sure filename only contains file and not larger pathname
+        filename = filename.split('\\')[-1].split('/')[-1]
+
+        # Extract time string from filename
+        time_str = filename.split('_')[0]
+
+        # Turn time string into datetime object
+        spec_time = datetime.strptime(time_str, self.file_datestr)
+
+        return spec_time
+
+    def update_dark_dir_use(self):
+        """
+        Updates DOAS worker to use or not use dark directory for scan processing (rather than single dark spectrum)
+        """
+        self.doas_worker.use_dark_dir = self.use_dark_dir.get()
+
+    def load_dark_dir(self):
+        """Load scan directory"""
+        # Save old scan directory if we need to revert back
+        dark_dir_old = self.dark_dir
+
+        # Open dialog to select new scan directory
+        self.dark_dir = filedialog.askdirectory(initialdir=self.init_dir, title='Select scan folder')
+
+        # Revert to old scan directory if file dialog box was closed without selecting a directory
+        if not self.dark_dir:
+            self.dark_dir = dark_dir_old
+            return
+
+        # Configure scan directory label widget - truncate string if it is too long for the widget
+        self.dark_dir += '/'
+        if len(self.dark_dir) > self.str_len_max:
+            self.dark_dir_label.configure(text='...' + self.dark_dir[-(self.str_len_max - 8):])
+        else:
+            self.dark_dir_label.configure(text=self.dark_dir)
+
+        # Set doas worker dark directory
+        self.doas_worker.dark_dir = self.dark_dir
 
     def load_scan(self):
         """Load scan directory"""
@@ -264,8 +369,9 @@ class PostProcess:
 
         all_files = os.listdir(self.scan_dir)
 
-        dark_files = [f for f in all_files if 'dark.txt' in f.lower()]
-        self.scan_files = [f for f in all_files if 'plume.txt' in f.lower() or 'clear.txt' in f.lower()]     # Includes any clear files in the directory
+        dark_files = [f for f in all_files if 'dark.txt' in f.lower() or 'dark.npy' in f.lower()]
+        self.scan_files = [f for f in all_files if 'plume.txt' in f.lower() or 'clear.txt' in f.lower()
+                           or 'plume.npy' in f.lower() or 'clear.npy' in f.lower()]     # Includes any clear files in the directory
 
         # For now just work with one dark spectrum
         if dark_files:
@@ -286,9 +392,19 @@ class PostProcess:
     def process_doas(self):
         """Perform doas retrieval on loaded data"""
         # No need to check plume_path, as clear_path comes from the first plume spectrum in scan_dir (this is not the case if loading individual spectra)
-        if self.dark_path is None or not self.scan_files:
-            print('Scan directory must contain dark and plume spectra to be processed')
+        if self.dark_path is None and not self.use_dark_dir:
+            print('When not using a dark directory, scan directory must contain a dark spectrum')
             return
+        elif self.use_dark_dir:
+            if not os.path.exists(self.dark_dir):
+                print('Selected dark directory does not exist')
+                return
+        if not self.scan_files:
+            print('Scan directory must contain plume spectra to be processed')
+            return
+
+        # Reset results
+        self.reset_results()
 
         # Create directory to save processed data
         self.save_path = self.scan_dir + 'Processing_1/'
@@ -337,12 +453,19 @@ class PostProcess:
                 self.set_doas_filename(plume_file)
                 self.save_obj.save_processed_spec(self.dark_path, self.clear_path, self.plume_path, self.doas_path)
 
+            # Put results into dictionary
+            self.results['time'].append(self.get_spec_time(plume_file))
+            self.results['column_density'].append(self.doas_worker.column_density['SO2'] * self.doas_worker.ppmm_conversion)
+            self.results['fit_err'].append(self.doas_worker.std_err * self.doas_worker.ppmm_conversion)
+            self.results['ldf'].append(np.nan)
+
         # Calculate emission rate
         self.scan_proc.calc_emission_rate()
         self.cd_plot.update_emission_rate()
 
         # Save scan data
         self.save_obj.save_scan(self.save_path)
+        self.save_doas_results()
 
         if not batch:
             # Re configure the button to control the start of a processing loop again
@@ -399,6 +522,20 @@ class PostProcess:
         except Exception as e:
             print(e)
 
+    def save_doas_results(self, filename=None):
+        """Save doas results in format used by pycam"""
+        if filename is None:
+            filename = 'DOAS_results.csv'
+
+        # Create full database to save
+        frame = {'Time': pd.Series(self.results['time']),
+                 'Column density': pd.Series(self.results['column_density']),
+                 'CD error': pd.Series(self.results['fit_err']),
+                 'LDF': pd.Series(self.results['ldf'])}
+        df = pd.DataFrame(frame)
+
+        # self.results[idx_start:idx_end].to_csv(pathname)
+        df.to_csv(os.path.join(self.save_path, filename))
 
 class DirectoryWatcherFrame:
     """
