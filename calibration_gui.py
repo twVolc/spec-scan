@@ -203,7 +203,7 @@ class CalPlot:
 
         # Generate filename based on time, then save file as text
         time = datetime.now().strftime('%Y-%m-%dT%H%M%S')
-        self.dark_filename = '{}_dark.txt'.format(time)
+        self.dark_filename = '{}_{}ms_dark.txt'.format(time, int(self.spec_ctrl.int_time))
         self.save_dark(self.save_path + self.dark_filename)
 
         # Change GUI label for dark file
@@ -218,6 +218,7 @@ class CalPlot:
             return
 
         # Set integration time
+        self.wavelengths = self.spec_ctrl.wavelengths
         self.spec_ctrl.int_time = self.int_time.get()
 
         # Ignore first spectrum as it could have been acquired prior to
@@ -231,7 +232,7 @@ class CalPlot:
 
         # Generate filename based on time, then save file as text
         time = datetime.now().strftime('%Y-%m-%dT%H%M%S')
-        self.cal_filename = '{}_cal.txt'.format(time)
+        self.cal_filename = '{}_{}ms_cal.txt'.format(time, int(self.spec_ctrl.int_time))
         self.save_cal_raw(self.save_path + self.cal_filename)
 
         # Change GUI label for dark file

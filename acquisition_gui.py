@@ -217,7 +217,7 @@ class AcquisitionFrame:
 
         # Generate filename based on time, then save file as text
         time = datetime.now().strftime('%Y-%m-%dT%H%M%S')
-        dark_filename = '{}_dark.txt'.format(time)
+        dark_filename = '{}_{}ms_dark.txt'.format(time, self.spec_ctrl.int_time)
         if self.scanning:
             self.dark_path = self.scan_dir + dark_filename
         elif not self.scanning:
@@ -256,7 +256,7 @@ class AcquisitionFrame:
 
         # Generate filename based on time, then save file as text
         time = datetime.now().strftime('%Y-%m-%dT%H%M%S')
-        clear_filename = '{}_clear.txt'.format(time)
+        clear_filename = '{}_{}ms_clear.txt'.format(time, self.spec_ctrl.int_time)
         if self.scanning:
             self.clear_path = self.scan_dir + clear_filename
         elif not self.scanning:
@@ -325,7 +325,7 @@ class AcquisitionFrame:
 
         # Generate filename based on time, then save file as text
         time = datetime.now().strftime('%Y-%m-%dT%H%M%S')
-        plume_filename = '{}_plume.txt'.format(time)
+        plume_filename = '{}_{}ms_plume.txt'.format(time, self.spec_ctrl.int_time)
         if self.scanning:
             self.plume_path = self.scan_dir + plume_filename
         elif not self.scanning:
