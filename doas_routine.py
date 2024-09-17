@@ -935,6 +935,10 @@ class DOASWorker:
 
             # Load spectrum and update figure
             self.wavelengths, self.plume_spec_raw = load_spectrum(pathname)
+            # ===========================================
+            # EDIT FOR WAVELENGTHS BEING IN MILLIONS FOR IGP
+            self.wavelengths = self.wavelengths/10000
+            # ===========================================
             self.fig_spec.update_plume()
 
             # Process spectrum and update plot
@@ -1011,6 +1015,8 @@ class DOASWorker:
 
     def directory_watch_handler(self, pathname, t):
         """Controls the watching of a directory"""
+        print('Got file: {}'.format(pathname))
+
         # Separate the filename and pathname
         pathname, filename = os.path.split(pathname)
 
