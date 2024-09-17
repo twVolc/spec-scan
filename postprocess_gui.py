@@ -573,7 +573,7 @@ class DirectoryWatcherFrame:
         check.grid(row=row, column=0, columnspan=2, sticky='w', padx=self.pdx, pady=self.pdy)
 
         label = ttk.Label(self.frame, text='Watch directory:')
-        self.watch_label = ttk.Label(self.frame, text='N/A', width=25)
+        self.watch_label = ttk.Label(self.frame, text=self.doas_worker.watch_dir, width=25)
         self.select_butt = ttk.Button(self.frame, text='Select directory', command=self.select_dir)
         row += 1
         label.grid(row=row, column=0, sticky='e', padx=self.pdx, pady=self.pdy)
