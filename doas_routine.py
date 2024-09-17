@@ -1014,6 +1014,11 @@ class DOASWorker:
         # Separate the filename and pathname
         pathname, filename = os.path.split(pathname)
 
+        if 'Processing_' in pathname:
+            return
+        if filename == self.series.filename:
+            return
+
         # Only process this directory once the scan_complete file is present
         if filename == self.spec_specs.scan_complete:
             # Extract date directory
