@@ -672,24 +672,24 @@ class TimeSeriesPlot:
 
         # Set x and y limits if we have more than one data point in the array
         if len(self.series.emission_rates) > 0:
-            ymax = np.amax(self.series.emission_rates) * 1.15
+            ymax = np.amax(self.series.emission_rates)
             ymin = np.amin(self.series.emission_rates)
             if ymin > 0:
                 ymin = 0
             else:
                 ymin *= 1.1
             if ymax == 0:
-                ymax = 10
+                ymax = 1
+            elif ymax < 0:
+                ymax *= 0.85
+            else:
+                ymax *= 1.15
             self.ax.set_ylim([ymin, ymax])
 
-            if len(self.series.emission_rates) > 1:
-                time_delta = datetime.timedelta(minutes=30)
-                self.ax.set_xlim([self.series.matplotlib_times[0] - time_delta,
-                                  date2num(self.series.times[-1] + time_delta)])
-            else:
-                time_delta = datetime.timedelta(hours=1)
-                xlims = [date2num(self.series.times[0] - time_delta), date2num(self.series.times[0] + time_delta)]
-                self.ax.set_xlim(xlims)
+            time_delta = datetime.timedelta(minutes=30)
+            min = date2num(np.nanmin(self.series.times) - time_delta)
+            max = date2num(np.nanmax(self.series.times) + time_delta)
+            self.ax.set_xlim([min, max])
 
         self.Q.put(1)
 

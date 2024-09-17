@@ -22,6 +22,7 @@ from tkinter import filedialog
 from tkinter import messagebox
 import datetime
 import copy
+import time
 
 warnings.filterwarnings("ignore", category=OptimizeWarning)
 
@@ -860,6 +861,13 @@ class DOASWorker:
         if scan_dir is not None:
             self.spec_dir = scan_dir
 
+        print('Processing scan: {}'.format(self.spec_dir))
+        # Set the current date directory (assuming that a scan directory is placed within a directory that is named as
+        # the date)
+        pathname, filename = os.path.split(self.spec_dir)
+        date_path = os.path.split(pathname)[0]
+        self.date_dir = os.path.split(date_path)[-1]
+
         # If auto plume params are set then we attempt to load them
         if self.auto_plume_params:
             try:
@@ -935,6 +943,10 @@ class DOASWorker:
 
             # Load spectrum and update figure
             self.wavelengths, self.plume_spec_raw = load_spectrum(pathname)
+            # # ===========================================
+            # # EDIT FOR WAVELENGTHS BEING IN MILLIONS FOR IGP
+            # self.wavelengths = self.wavelengths/10000
+            # # ===========================================
             self.fig_spec.update_plume()
 
             # Process spectrum and update plot
@@ -1013,6 +1025,13 @@ class DOASWorker:
         """Controls the watching of a directory"""
         # Separate the filename and pathname
         pathname, filename = os.path.split(pathname)
+
+        if 'Processing_' in pathname:
+            return
+        if filename == self.series.filename:
+            return
+
+        print('Got file: {}'.format(filename))
 
         # Only process this directory once the scan_complete file is present
         if filename == self.spec_specs.scan_complete:
@@ -1825,7 +1844,7 @@ class EmissionSeries:
         else:
             return None
 
-    def save_series(self, pathname, plume_distance, plume_speed):
+    def save_series(self, pathname, plume_distance, plume_speed, timeout=5):
         """
         Saves times series data
         :param pathname:    str     Path to save file directory
@@ -1836,7 +1855,8 @@ class EmissionSeries:
 
         # Sometimes encounter an exception when trying to save, issue with permission which seems random, so keep trying
         # to save until we are successful
-        while True:
+        start_time = time.time()
+        while time.time() - start_time < timeout:
             try:
                 np.savetxt(pathname, np.transpose([self.str_times, self.emission_rates]),
                            header='plume_distance={}\n'
