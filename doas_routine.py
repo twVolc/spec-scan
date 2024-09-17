@@ -860,6 +860,8 @@ class DOASWorker:
         if scan_dir is not None:
             self.spec_dir = scan_dir
 
+        print('Processing scan: {}'.format(self.spec_dir))
+
         # If auto plume params are set then we attempt to load them
         if self.auto_plume_params:
             try:
@@ -1015,8 +1017,6 @@ class DOASWorker:
 
     def directory_watch_handler(self, pathname, t):
         """Controls the watching of a directory"""
-        print('Got file: {}'.format(pathname))
-
         # Separate the filename and pathname
         pathname, filename = os.path.split(pathname)
 
@@ -1024,6 +1024,8 @@ class DOASWorker:
             return
         if filename == self.series.filename:
             return
+
+        print('Got file: {}'.format(pathname))
 
         # Only process this directory once the scan_complete file is present
         if filename == self.spec_specs.scan_complete:
@@ -1053,6 +1055,7 @@ class DOASWorker:
         while True:
             # Get scan directory
             scan_dir = self.q_scan.get(block=True)
+            print('Got scan: {}'.format(scan_dir))
 
             # Can end function by adding exit to queue
             if scan_dir == 'exit':
