@@ -22,6 +22,7 @@ from tkinter import filedialog
 from tkinter import messagebox
 import datetime
 import copy
+import time
 
 warnings.filterwarnings("ignore", category=OptimizeWarning)
 
@@ -861,6 +862,11 @@ class DOASWorker:
             self.spec_dir = scan_dir
 
         print('Processing scan: {}'.format(self.spec_dir))
+        # Set the current date directory (assuming that a scan directory is placed within a directory that is named as
+        # the date)
+        pathname, filename = os.path.split(self.spec_dir)
+        date_path = os.path.split(pathname)[0]
+        self.date_dir = os.path.split(date_path)[-1]
 
         # If auto plume params are set then we attempt to load them
         if self.auto_plume_params:
@@ -1025,7 +1031,7 @@ class DOASWorker:
         if filename == self.series.filename:
             return
 
-        print('Got file: {}'.format(pathname))
+        print('Got file: {}'.format(filename))
 
         # Only process this directory once the scan_complete file is present
         if filename == self.spec_specs.scan_complete:
@@ -1055,7 +1061,6 @@ class DOASWorker:
         while True:
             # Get scan directory
             scan_dir = self.q_scan.get(block=True)
-            print('Got scan: {}'.format(scan_dir))
 
             # Can end function by adding exit to queue
             if scan_dir == 'exit':
@@ -1839,7 +1844,7 @@ class EmissionSeries:
         else:
             return None
 
-    def save_series(self, pathname, plume_distance, plume_speed):
+    def save_series(self, pathname, plume_distance, plume_speed, timeout=5):
         """
         Saves times series data
         :param pathname:    str     Path to save file directory
@@ -1850,7 +1855,8 @@ class EmissionSeries:
 
         # Sometimes encounter an exception when trying to save, issue with permission which seems random, so keep trying
         # to save until we are successful
-        while True:
+        start_time = time.time()
+        while time.time() - start_time < timeout:
             try:
                 np.savetxt(pathname, np.transpose([self.str_times, self.emission_rates]),
                            header='plume_distance={}\n'
