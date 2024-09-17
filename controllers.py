@@ -1,5 +1,8 @@
 # IMPORTING SEABREEZE WITH PYUSB BACKEND FOR SPECTROMETER CONTROL
-import seabreeze.spectrometers as sb
+try:
+    import seabreeze.spectrometers as sb
+except ModuleNotFoundError:
+    print('Working on a machine without seabreeze, spectrometer control will not be possible.')
 import numpy as np
 
 
@@ -12,7 +15,10 @@ class SpecCtrl:
         self.devices = None     # List of detected spectrometers
         self.spec = None        # Holds spectrometer for interfacing via seabreeze
         self.wavelengths = None # Array of wavelengths
-        self.find_device()
+        try:
+            self.find_device()
+        except (NameError, SpectrometerConnectionError):
+            print('Spectrometer could not be found')
 
         # Set integration time (ALL IN MICROSECONDS)
         self._int_limit_lower = 1000        # Lower integration time limit
@@ -58,7 +64,10 @@ class SpecCtrl:
             raise ValueError('Integration time above %i us is not possible' % self._int_limit_upper)
 
         self._int_time = int_time
-        self.spec.integration_time_micros(int_time)
+        try:
+            self.spec.integration_time_micros(int_time)
+        except AttributeError:
+            print('No spectrometer available to set integration time.')
 
     @property
     def coadd(self):
