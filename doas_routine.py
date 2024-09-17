@@ -943,10 +943,10 @@ class DOASWorker:
 
             # Load spectrum and update figure
             self.wavelengths, self.plume_spec_raw = load_spectrum(pathname)
-            # ===========================================
-            # EDIT FOR WAVELENGTHS BEING IN MILLIONS FOR IGP
-            self.wavelengths = self.wavelengths/10000
-            # ===========================================
+            # # ===========================================
+            # # EDIT FOR WAVELENGTHS BEING IN MILLIONS FOR IGP
+            # self.wavelengths = self.wavelengths/10000
+            # # ===========================================
             self.fig_spec.update_plume()
 
             # Process spectrum and update plot
