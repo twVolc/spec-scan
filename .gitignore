@@ -4,3 +4,5 @@
 Spectra/
 
 arduino_stepper/
+
+__pycache__/
