@@ -1025,8 +1025,6 @@ class DOASWorker:
         if filename == self.series.filename:
             return
 
-        print('Got file: {}'.format(pathname))
-
         # Only process this directory once the scan_complete file is present
         if filename == self.spec_specs.scan_complete:
             # Extract date directory
