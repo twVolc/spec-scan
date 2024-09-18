@@ -541,7 +541,7 @@ class CDPlot:
         # Add uncertainty
         self.stds.append(self.ax.plot([self.scan_proc.scan_angles[-1], self.scan_proc.scan_angles[-1]],
                                     [self.doas_worker.column_density['SO2'] - self.doas_worker.std_err,
-                                    self.doas_worker.column_density['SO2'] + self.doas_worker.std_err], color='0.75'))
+                                    self.doas_worker.column_density['SO2'] + self.doas_worker.std_err], color='red'))
 
         # Set x and y limits if we have more than one data point in the array
         if len(self.scan_proc.column_densities) > 1:
@@ -670,6 +670,13 @@ class TimeSeriesPlot:
     def update_plot(self):
         self.ax.lines[0].set_data(self.series.matplotlib_times, self.series.emission_rates)
 
+        # Clear old error bars before plotting new
+        if hasattr(self, 'error_bars'):
+            for line in self.error_bars[2]:
+                line.remove()
+        self.error_bars = self.ax.errorbar(self.series.matplotlib_times, self.series.emission_rates,
+                                           yerr=self.series.emission_uncertainties, fmt='none', ecolor='red')
+
         # Set x and y limits if we have more than one data point in the array
         if len(self.series.emission_rates) > 0:
             ymax = np.amax(self.series.emission_rates)
@@ -677,13 +684,13 @@ class TimeSeriesPlot:
             if ymin > 0:
                 ymin = 0
             else:
-                ymin *= 1.1
+                ymin *= 1.2
             if ymax == 0:
                 ymax = 1
             elif ymax < 0:
-                ymax *= 0.85
+                ymax *= 0.8
             else:
-                ymax *= 1.15
+                ymax *= 1.2
             self.ax.set_ylim([ymin, ymax])
 
             time_delta = datetime.timedelta(minutes=30)

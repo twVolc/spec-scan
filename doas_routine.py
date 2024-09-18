@@ -943,10 +943,6 @@ class DOASWorker:
 
             # Load spectrum and update figure
             self.wavelengths, self.plume_spec_raw = load_spectrum(pathname)
-            # # ===========================================
-            # # EDIT FOR WAVELENGTHS BEING IN MILLIONS FOR IGP
-            # self.wavelengths = self.wavelengths/10000
-            # # ===========================================
             self.fig_spec.update_plume()
 
             # Process spectrum and update plot
@@ -968,7 +964,8 @@ class DOASWorker:
                               'column_density': self.column_density}  # Column density
 
             # Update scan processor
-            self.scan_proc.add_data(processed_dict['scan_angle'], processed_dict['column_density']['SO2'])
+            self.scan_proc.add_data(processed_dict['scan_angle'], processed_dict['column_density']['SO2'],
+                                    processed_dict['std_err'])
             self.fig_scan.update_plot()
 
             # Put results in doas q to be plotted
@@ -989,8 +986,8 @@ class DOASWorker:
         self.save_obj.save_scan(self.save_path)
 
         # Put this emission rate in q with scan dir
-        self.q_emission.put([processed_dict['time'], self.scan_proc.SO2_flux])
-        self.series.add_data(processed_dict['time'], self.scan_proc.SO2_flux)
+        self.q_emission.put([processed_dict['time'], self.scan_proc.SO2_flux, self.scan_proc.SO2_flux_uncertainty])
+        self.series.add_data(processed_dict['time'], self.scan_proc.SO2_flux, self.scan_proc.SO2_flux_uncertainty)
         self.fig_series.update_plot()
         self.fig_series.update_emission_rate()
 
@@ -1754,18 +1751,24 @@ class ScanProcess:
 
         self.scan_angles = np.array([])
         self.column_densities = np.array([])
+        self.cd_uncertainties = np.array([])
 
         self.SO2_flux = None
+        self.SO2_flux_uncertainty = None
 
     def clear_data(self):
         """Initialises new arrays"""
         self.scan_angles = np.array([])
         self.column_densities = np.array([])
+        self.cd_uncertainties = np.array([])
 
-    def add_data(self, scan_angle, column_density):
+    def add_data(self, scan_angle, column_density, cd_uncertainty):
         """Adds data"""
         self.scan_angles = np.append(self.scan_angles, scan_angle)
         self.column_densities = np.append(self.column_densities, column_density)
+        if np.isnan(cd_uncertainty) or np.isinf(cd_uncertainty):
+            cd_uncertainty = 0
+        self.cd_uncertainties = np.append(self.cd_uncertainties, cd_uncertainty)
 
     def __calc_scan_sep__(self):
         """Calculates separation between 2 scan points in the plume"""
@@ -1785,6 +1788,20 @@ class ScanProcess:
         # Calculate emssion rate (flux) kg/s
         self.SO2_flux = SO2_mass * self.plume_speed
 
+        # Calculate uncertainty
+        self.calc_emission_uncertainty()
+
+    def calc_emission_uncertainty(self):
+        """
+        Calculates the uncertainty associated with an emission rate based on the column density errors.
+        IMPORTANT! This is not a complete uncertainty as it doesn't include other uncertainties such as plume speed
+        and distance. It is therefore a lower limit, but give some context for a data point - were the fits good or
+        is it likely this measurement is driven by poor data quality (e.g. insufficient signal)
+        """
+        # Scale uncertainties then add in quadrature
+        ica_uncertainty = np.sqrt(np.sum(np.square(self.cd_uncertainties * self.ppm2kg * self.scan_sep)))
+        self.SO2_flux_uncertainty = ica_uncertainty * self.plume_speed
+
     @property
     def flux_tons(self):
         """Convert SO2 flux to t/day"""
@@ -1803,16 +1820,18 @@ class EmissionSeries:
         self.filename = 'emission_series.txt'
         self.times = []     # List of times (not numpy array as times are held as datetime objects)
         self.emission_rates = np.array([])
+        self.emission_uncertainties = np.array([])
 
     def clear_data(self):
         """Initialises new arrays"""
         self.times = []
         self.emission_rates = np.array([])
 
-    def add_data(self, dat_time, emission_rate):
+    def add_data(self, dat_time, emission_rate, emission_uncertainty):
         """Adds data"""
         self.times.append(dat_time)
         self.emission_rates = np.append(self.emission_rates, emission_rate)
+        self.emission_uncertainties = np.append(self.emission_uncertainties, emission_uncertainty)
 
     @property
     def matplotlib_times(self):
@@ -1858,10 +1877,10 @@ class EmissionSeries:
         start_time = time.time()
         while time.time() - start_time < timeout:
             try:
-                np.savetxt(pathname, np.transpose([self.str_times, self.emission_rates]),
+                np.savetxt(pathname, np.transpose([self.str_times, self.emission_rates, self.emission_uncertainties]),
                            header='plume_distance={}\n'
                                   'plume_speed={}\n'
-                                  'Date\tTime\tEmission rate [kg/s]'.format(plume_distance, plume_speed))
+                                  'Date\tTime\tEmission rate [kg/s]\tUncertainty'.format(plume_distance, plume_speed))
                 break
             except Exception as e:
                 pass
