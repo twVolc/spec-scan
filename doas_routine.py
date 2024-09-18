@@ -1803,7 +1803,6 @@ class ScanProcess:
         is it likely this measurement is driven by poor data quality (e.g. insufficient signal)
         """
         # Scale uncertainties then add in quadrature
-        print(self.cd_uncertainties)
         ica_uncertainty = np.sqrt(np.sum(np.square(self.cd_uncertainties * self.ppm2kg * self.scan_sep)))
         self.SO2_flux_uncertainty = ica_uncertainty * self.plume_speed
 
