@@ -669,6 +669,8 @@ class TimeSeriesPlot:
 
     def update_plot(self):
         self.ax.lines[0].set_data(self.series.matplotlib_times, self.series.emission_rates)
+        self.ax.errorbar(self.series.matplotlib_times, self.series.emission_rates,
+                         yerr=self.series.emission_uncertainties, fmt='')
 
         # Set x and y limits if we have more than one data point in the array
         if len(self.series.emission_rates) > 0:
