@@ -9,7 +9,3 @@ win32file: python -m pip install pywin32 or if using anaconda: conda install -c 
 pyserial: python -m pip install pyserial
 seabreeze is best installed with Anaconda 'conda install -c poehlmann python-seabreeze'
 then: seabreeze_os_setup to install drivers
-
-
-TODO - scaling for integration time, so this can be used for processing pycam spectrometer data - where integration time
-TODO - changes through time
